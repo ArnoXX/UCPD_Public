@@ -44,7 +44,7 @@ void UCPD_PHY_Handler(void) {
   /* Received hard reset */
   if (CHECK_STATUS(status, UCPD_SR_RXHRSTDET)) {
     LL_UCPD_ClearFlag_RxHRST(port->port_handle.instance);
-
+    UCPD_INT_SET(port->port_handle.instance->IMR, UCPD_INT_PHY_WORKER_MASK);
     UCPD_PHY_HRDRS_Received(0);
 
     TRACE_HW_EVENT("Received hard reset\n\r");
@@ -88,7 +88,7 @@ void UCPD_PHY_Handler(void) {
   if (CHECK_STATUS(status, UCPD_SR_RXORDDET)) {
     LL_UCPD_ClearFlag_RxOrderSet(port->port_handle.instance);
     UCPD_PHY_RX_Started(0);
-           TRACE_DEBUG("Reception started\n\r");
+    TRACE_DEBUG("Reception started\n\r");
 
     return;
   }
@@ -97,13 +97,13 @@ void UCPD_PHY_Handler(void) {
   if (CHECK_STATUS(status, UCPD_SR_RXMSGEND)) {
     LL_UCPD_ClearFlag_RxMsgEnd(port->port_handle.instance);
 
-    UCPD_Bool error = CHECK_STATUS(status, UCPD_SR_RXERR);
+    bool error = CHECK_STATUS(status, UCPD_SR_RXERR);
     UCPD_PHY_RX_Complete(0, error);
 
-    if (error == UCPD_FALSE)
+    if (error == false)
       UCPD_PD_PHY_Event_Handle(0, PHY_EVENT_MSG_RX_COMPLETE);
 
-           TRACE_DEBUG("Reception complete\n\r");
+    TRACE_DEBUG("Reception complete\n\r");
 
     return;
   }
@@ -115,23 +115,25 @@ void UCPD_PHY_TX_Discarded(UCPD_PORT_Number port_number) {
 
 void UCPD_EnableTransmissionEvents(UCPD_PORT_INSTANCE *port) {
   // todo: allow tx inside the handler with a flag
-  port->pe_prl_cad.txAllowed = UCPD_TRUE;
+  port->pe_prl_cad.txAllowed = true;
 }
 
 void UCPD_DisableTransmissionEvents(UCPD_PORT_INSTANCE *port) {
   // todo: block tx inside the handler with a flag
-  port->pe_prl_cad.txAllowed = UCPD_FALSE;
+  port->pe_prl_cad.txAllowed = false;
 }
 
 void UCPD_PHY_HRDRS_Received(UCPD_PORT_Number port_number) {
   UCPD_PORT_INSTANCE *port = UCPD_CTX_GetPortInstance(port_number);
 
-  port->pe_prl_cad.hardResetActive = UCPD_TRUE;
+  port->pe_prl_cad.hardResetActive = true;
 
   // disable tx
   UCPD_DisableTransmissionEvents(
       port); // maaaaaaaybe this will happen before the send message routine
-             // checks the flag
+  // checks the flag
+
+  LL_UCPD_TxDMADisable(port->port_handle.instance);
   blockTxDataTransfer(&port->port_handle); // if not, disable DMA so it cannot
                                            // start transmitting
 
@@ -192,6 +194,9 @@ void UCPD_PHY_HRDRS_Completed(UCPD_PORT_Number port_number) {
   // confTxDataTransfer(&port->port_handle, port->pe_prl.prl_sm.txBuffer.buffer,
   // 0); unblockTxDataTransfer(&port->port_handle);
 
+  LL_UCPD_TxDMAEnable(port->port_handle.instance);
+  unblockTxDataTransfer(&port->port_handle);
+
   UCPD_INT_SET(port->port_handle.instance->IMR, UCPD_INT_NORMAL_MASK);
 
   BLOCK_EVENT(UCPD_TIMER_EVENT);
@@ -236,7 +241,7 @@ void UCPD_PD_PHY_Event_Handle(UCPD_PORT_Number port_number,
 
   case PHY_EVENT_HRD_RECIEVED: {
     port->pe_prl_cad.phy_event = PE_PRL_EVENT_HRD_RECEIVED;
-    port->pe_prl_cad.hrdOriginPE = UCPD_FALSE;
+    port->pe_prl_cad.hrdOriginPE = false;
     break;
   }
 
@@ -267,7 +272,10 @@ void UCPD_PD_PHY_Event_Handle(UCPD_PORT_Number port_number,
 
 void UCPD_PHY_Worker_Finished(UCPD_PORT_Number port_number) {
   UCPD_PORT_INSTANCE *port = UCPD_CTX_GetPortInstance(port_number);
-  
+  unblockRxDataTransfer(&port->port_handle);
+  LL_UCPD_RxDMAEnable(port->port_handle.instance);
+  LL_UCPD_RxEnable(port->port_handle.instance);
+
   UCPD_INT_SET(port->port_handle.instance->IMR, UCPD_INT_NORMAL_MASK);
 }
 
@@ -277,24 +285,27 @@ void UCPD_PE_PRL_Event_Emit(UCPD_PD_Event_Source source) {
 
 static UCPD_MSG msg_double;
 
-void UCPD_PHY_RX_Complete(UCPD_PORT_Number port_number, UCPD_Bool error) {
+void UCPD_PHY_RX_Complete(UCPD_PORT_Number port_number, bool error) {
   UCPD_PORT_INSTANCE *port = UCPD_CTX_GetPortInstance(port_number);
 
   UCPD_EnableTransmissionEvents(port);
 
   blockRxDataTransfer(&port->port_handle);
+  LL_UCPD_RxDMADisable(port->port_handle.instance);
+  LL_UCPD_RxDisable(port->port_handle.instance);
+  
 
-  COPY_RAW(msg_double.buffer, port->pe_prl_cad.buffers[UCPD_RX_BUFFER_INDEX].buffer, UCPD_MAX_MSG_LEN);
+  COPY_RAW(msg_double.buffer,
+           port->pe_prl_cad.buffers[UCPD_RX_BUFFER_INDEX].buffer,
+           UCPD_MAX_MSG_LEN);
 
-  CLEAR_STRUCT_VAL(msg_double);
+  msg_double = UCPD_MSG_INIT;
 
   // chunk of EPR source capabilities is the biggest message we expect to
   // receive, so the size of the standard buffer is enough
-  confRxDataTransfer(&port->port_handle,
-                     msg_double.buffer,
-                     UCPD_MAX_MSG_LEN);
+  confRxDataTransfer(&port->port_handle, msg_double.buffer, UCPD_MAX_MSG_LEN);
 
-  unblockRxDataTransfer(&port->port_handle);
+  
 }
 
 void UCPD_PHY_RX_Started(UCPD_PORT_Number port_number) {
@@ -333,25 +344,23 @@ UCPD_PE_PRL_CAD_Event getCADEventFromCC(UCPD_PORT_Number port_number) {
   return event;
 }
 
-UCPD_Bool isRxDataTransferBlocked(UCPD_HW_PORT_Handle *port_handle) {
-  return ((port_handle->rxData->CCR & DMA_CCR_EN) == DMA_CCR_EN) ? UCPD_FALSE
-                                                                 : UCPD_TRUE;
+bool isRxDataTransferBlocked(UCPD_HW_PORT_Handle *port_handle) {
+  return ((port_handle->rxData->CCR & DMA_CCR_EN) != DMA_CCR_EN);
 }
 
-UCPD_Bool isTxDataTransferBlocked(UCPD_HW_PORT_Handle *port_handle) {
-  return ((port_handle->txData->CCR & DMA_CCR_EN) == DMA_CCR_EN) ? UCPD_FALSE
-                                                                 : UCPD_TRUE;
+bool isTxDataTransferBlocked(UCPD_HW_PORT_Handle *port_handle) {
+  return ((port_handle->txData->CCR & DMA_CCR_EN) != DMA_CCR_EN);
 }
 
 void blockTxDataTransfer(UCPD_HW_PORT_Handle *port_handle) {
   CLEAR_BIT(port_handle->txData->CCR, DMA_CCR_EN);
-  while (isTxDataTransferBlocked(port_handle) == UCPD_FALSE)
+  while (isTxDataTransferBlocked(port_handle) == false)
     ;
 }
 
 void blockRxDataTransfer(UCPD_HW_PORT_Handle *port_handle) {
   CLEAR_BIT(port_handle->rxData->CCR, DMA_CCR_EN);
-  while (isRxDataTransferBlocked(port_handle) == UCPD_FALSE)
+  while (isRxDataTransferBlocked(port_handle) == false)
     ;
 }
 
@@ -381,7 +390,7 @@ void confRxDataTransfer(UCPD_HW_PORT_Handle *port_handle, uint8_t *buffer,
 
 void UCPD_PHY_SendMessage(UCPD_PORT_Number port_number) {
   UCPD_PORT_INSTANCE *port = UCPD_CTX_GetPortInstance(port_number);
-  if (port->pe_prl_cad.txAllowed == UCPD_FALSE) {
+  if (port->pe_prl_cad.txAllowed == false) {
     return;
   }
 
@@ -417,7 +426,7 @@ void UCPD_PHY_StartBIST2(UCPD_PORT_Number port_number) {
 
 void UCPD_PHY_StopBIST2(UCPD_PORT_Number port_number) {
   UCPD_PORT_INSTANCE *port = UCPD_CTX_GetPortInstance(port_number);
-  while (isRxDataTransferBlocked(&port->port_handle) == UCPD_FALSE)
+  while (isRxDataTransferBlocked(&port->port_handle) == false)
     ;
 }
 
@@ -455,9 +464,9 @@ void UCPD_PHY_SetCC(UCPD_PORT_Number port_number) {
                                                    : LL_UCPD_CCPIN_CC2);
 }
 
-void UCPD_PHY_EnableCC(UCPD_PORT_Number port_number, UCPD_Bool both) {
+void UCPD_PHY_EnableCC(UCPD_PORT_Number port_number, bool both) {
   UCPD_PORT_INSTANCE *port = UCPD_CTX_GetPortInstance(port_number);
-  if (both == UCPD_TRUE)
+  if (both)
     LL_UCPD_SetccEnable(port->port_handle.instance, LL_UCPD_CCENABLE_CC1CC2);
   else
     LL_UCPD_SetccEnable(port->port_handle.instance,
@@ -472,9 +481,11 @@ void UCPD_PHY_Detach(UCPD_PORT_Number port_number) {
   LL_UCPD_TxDMADisable(port->port_handle.instance);
   LL_UCPD_RxDisable(port->port_handle.instance);
 
+  CLEAR_STATUS(port->port_handle.instance->SR, port->port_handle.instance->SR);
+  CLEAR_EVENT(UCPD_HW_PHY_EVENT);
   UCPD_CC_DETECTION_ONLY(port->port_handle.instance->IMR);
 
-  UCPD_PHY_EnableCC(port_number, UCPD_TRUE);
+  UCPD_PHY_EnableCC(port_number, true);
 
   port->port_handle.cc = UCPD_CCNONE;
 }
@@ -484,9 +495,7 @@ void UCPD_PHY_Attach(UCPD_PORT_Number port_number) {
   port->port_handle.rxData = UCPD_DATA_TRANSFER_RX_CHANNEL;
   port->port_handle.txData = UCPD_DATA_TRANSFER_TX_CHANNEL;
 
-  confRxDataTransfer(&port->port_handle,
-                     msg_double.buffer,
-                     UCPD_TOTAL_MSG_LEN);
+  confRxDataTransfer(&port->port_handle, msg_double.buffer, UCPD_TOTAL_MSG_LEN);
   unblockRxDataTransfer(&port->port_handle);
 
   confTxDataTransfer(&port->port_handle,
@@ -496,7 +505,7 @@ void UCPD_PHY_Attach(UCPD_PORT_Number port_number) {
 
   UCPD_PHY_SetCC(port_number);
 
-  UCPD_PHY_EnableCC(port_number, UCPD_FALSE);
+  UCPD_PHY_EnableCC(port_number, false);
 
   LL_UCPD_SetRxMode(port->port_handle.instance, LL_UCPD_RXMODE_NORMAL);
   LL_UCPD_RxDMAEnable(port->port_handle.instance);
@@ -504,7 +513,7 @@ void UCPD_PHY_Attach(UCPD_PORT_Number port_number) {
   LL_UCPD_RxEnable(port->port_handle.instance);
 }
 
-UCPD_Bool UCPD_PHY_IsSinkTxOk(UCPD_PORT_Number port_number) {
+bool UCPD_PHY_IsSinkTxOk(UCPD_PORT_Number port_number) {
   UCPD_PORT_INSTANCE *port = UCPD_CTX_GetPortInstance(port_number);
   return UCPD_CC_CHECK_TX_OK(port->port_handle.instance->SR, CC1) ||
          UCPD_CC_CHECK_TX_OK(port->port_handle.instance->SR, CC2);

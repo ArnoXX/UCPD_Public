@@ -60,16 +60,16 @@ static volatile uint8_t trace_queue_tail = 0u;
 
 /**
  * @brief DMA transmission state
- * UCPD_TRUE = DMA is currently transmitting
- * UCPD_FALSE = DMA is idle, ready for next string
+ * true = DMA is currently transmitting
+ * false = DMA is idle, ready for next string
  */
-static volatile UCPD_Bool trace_dma_busy = UCPD_FALSE;
+static volatile bool trace_dma_busy = false;
 
 /**
  * @brief Initialization state
- * UCPD_TRUE = TRACE_Init() has been called successfully
+ * true = TRACE_Init() has been called successfully
  */
-static UCPD_Bool trace_initialized = UCPD_FALSE;
+static bool trace_initialized = false;
 
 /**
  * @brief Last HAL error status
@@ -78,8 +78,8 @@ static volatile HAL_StatusTypeDef trace_last_error = HAL_OK;
 
 /* Forward declarations for queue helpers used below */
 static inline uint8_t TRACE_NextIndex(uint8_t current);
-static inline UCPD_Bool TRACE_IsQueueFull(void);
-static inline UCPD_Bool TRACE_IsQueueEmpty(void);
+static inline bool TRACE_IsQueueFull(void);
+static inline bool TRACE_IsQueueEmpty(void);
 static void TRACE_StartNextTransmission(void);
 
 /* Single shared build buffer for composing PDO/APDO lines */
@@ -141,19 +141,18 @@ static inline uint8_t TRACE_NextIndex(uint8_t current) {
 
 /**
  * @brief Check if queue is full
- * @return UCPD_TRUE if no space for new strings
+ * @return true if no space for new strings
  */
-static inline UCPD_Bool TRACE_IsQueueFull(void) {
-  return (TRACE_NextIndex(trace_queue_head) == trace_queue_tail) ? UCPD_TRUE
-                                                                 : UCPD_FALSE;
+static inline bool TRACE_IsQueueFull(void) {
+  return (TRACE_NextIndex(trace_queue_head) == trace_queue_tail);
 }
 
 /**
  * @brief Check if queue is empty
- * @return UCPD_TRUE if no strings pending
+ * @return true if no strings pending
  */
-static inline UCPD_Bool TRACE_IsQueueEmpty(void) {
-  return (trace_queue_head == trace_queue_tail) ? UCPD_TRUE : UCPD_FALSE;
+static inline bool TRACE_IsQueueEmpty(void) {
+  return (trace_queue_head == trace_queue_tail);
 }
 
 /**
@@ -168,7 +167,7 @@ static void TRACE_StartNextTransmission(void) {
   HAL_StatusTypeDef hal_status;
 
   /* Safety check - should not happen if called correctly */
-  if (trace_dma_busy == UCPD_TRUE || TRACE_IsQueueEmpty() == UCPD_TRUE ||
+  if (trace_dma_busy  || TRACE_IsQueueEmpty()  ||
       trace_uart_handle == NULL || trace_dma_handle == NULL) {
     return;
   }
@@ -186,7 +185,7 @@ static void TRACE_StartNextTransmission(void) {
   /* Start DMA transmission using HAL - much simpler! */
   if (length > 0u) {
     /* Mark DMA as busy before starting */
-    trace_dma_busy = UCPD_TRUE;
+    trace_dma_busy = true;
 
     /* HAL handles all the complex DMA setup for us */
     hal_status =
@@ -194,17 +193,17 @@ static void TRACE_StartNextTransmission(void) {
 
     if (hal_status != HAL_OK) {
       /* Transmission failed - mark as not busy and save error */
-      trace_dma_busy = UCPD_FALSE;
+      trace_dma_busy = false;
       trace_last_error = hal_status;
 
       /* Try next string if queue has more */
-      if (TRACE_IsQueueEmpty() == UCPD_FALSE) {
+      if (TRACE_IsQueueEmpty() == false) {
         TRACE_StartNextTransmission();
       }
     }
   } else {
     /* Empty string - skip and try next */
-    if (TRACE_IsQueueEmpty() == UCPD_FALSE) {
+    if (TRACE_IsQueueEmpty() == false) {
       TRACE_StartNextTransmission();
     }
   }
@@ -217,7 +216,7 @@ static void TRACE_StartNextTransmission(void) {
 HAL_StatusTypeDef TRACE_Init(UART_HandleTypeDef *uart_handle,
                              DMA_HandleTypeDef *dma_handle) {
   /* Only initialize once */
-  if (trace_initialized == UCPD_TRUE) {
+  if (trace_initialized ) {
     return HAL_OK;
   }
 
@@ -228,11 +227,11 @@ HAL_StatusTypeDef TRACE_Init(UART_HandleTypeDef *uart_handle,
   /* Reset queue state */
   trace_queue_head = 0u;
   trace_queue_tail = 0u;
-  trace_dma_busy = UCPD_FALSE;
+  trace_dma_busy = false;
   trace_last_error = HAL_OK;
 
   /* Mark as initialized */
-  trace_initialized = UCPD_TRUE;
+  trace_initialized = true;
 
   /* Send initialization message */
   TRACE_QueueString("TRACE: HAL system initialized\n\r");
@@ -242,7 +241,7 @@ HAL_StatusTypeDef TRACE_Init(UART_HandleTypeDef *uart_handle,
 
 void TRACE_QueueString(const char *str) {
   /* Check if system is initialized and enabled */
-  if (trace_initialized == UCPD_FALSE || TRACE_ENABLE == 0u ||
+  if (trace_initialized == false || TRACE_ENABLE == 0u ||
       trace_uart_handle == NULL || trace_dma_handle == NULL) {
     return;
   }
@@ -256,13 +255,13 @@ void TRACE_QueueString(const char *str) {
   UCPD_ENTER_CRITICAL();
 
   /* Check if queue has space */
-  if (TRACE_IsQueueFull() == UCPD_FALSE) {
+  if (TRACE_IsQueueFull() == false) {
     /* Add string to queue */
     trace_string_queue[trace_queue_head] = str;
     trace_queue_head = TRACE_NextIndex(trace_queue_head);
 
     /* Start transmission if DMA is idle */
-    if (trace_dma_busy == UCPD_FALSE && TRACE_IsQueueEmpty() == UCPD_FALSE) {
+    if (trace_dma_busy == false && TRACE_IsQueueEmpty() == false) {
       TRACE_StartNextTransmission();
     }
   }
@@ -271,8 +270,8 @@ void TRACE_QueueString(const char *str) {
   UCPD_EXIT_CRITICAL();
 }
 
-UCPD_Bool TRACE_IsQueueReady(void) {
-  return (TRACE_IsQueueFull() == UCPD_FALSE) ? UCPD_TRUE : UCPD_FALSE;
+bool TRACE_IsQueueReady(void) {
+  return (TRACE_IsQueueFull() == false);
 }
 
 uint8_t TRACE_GetQueueCount(void) {
@@ -293,7 +292,7 @@ uint8_t TRACE_GetQueueCount(void) {
 
 void TRACE_Flush(void) {
   /* Wait until all strings are transmitted */
-  while (trace_dma_busy == UCPD_TRUE || TRACE_IsQueueEmpty() == UCPD_FALSE) {
+  while (trace_dma_busy  || TRACE_IsQueueEmpty() == false) {
     /* Busy wait - use sparingly! */
     __NOP();
   }
@@ -309,10 +308,10 @@ void TRACE_HAL_TxCpltCallback(UART_HandleTypeDef *huart) {
   /* Verify this is our UART instance */
   if (huart->Instance == TRACE_UART_INSTANCE) {
     /* Mark DMA as no longer busy */
-    trace_dma_busy = UCPD_FALSE;
+    trace_dma_busy = false;
 
     /* Start next transmission if queue has more strings */
-    if (TRACE_IsQueueEmpty() == UCPD_FALSE) {
+    if (TRACE_IsQueueEmpty() == false) {
       TRACE_StartNextTransmission();
     }
   }
@@ -323,10 +322,10 @@ void TRACE_HAL_ErrorCallback(UART_HandleTypeDef *huart) {
   if (huart->Instance == TRACE_UART_INSTANCE) {
     /* Save error status and mark DMA as not busy */
     trace_last_error = HAL_ERROR;
-    trace_dma_busy = UCPD_FALSE;
+    trace_dma_busy = false;
 
     /* Try to recover by attempting next transmission */
-    if (TRACE_IsQueueEmpty() == UCPD_FALSE) {
+    if (TRACE_IsQueueEmpty() == false) {
       TRACE_StartNextTransmission();
     }
   }

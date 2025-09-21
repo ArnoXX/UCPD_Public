@@ -69,7 +69,7 @@ static void MX_TIM14_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-volatile UCPD_Bool waiting_for_epr = UCPD_TRUE;
+volatile bool waiting_for_epr = true;
 void Policy(UCPD_PORT_Number port_number, UCPD_Policy_Event event)
 {
   switch(event)
@@ -86,14 +86,16 @@ void Policy(UCPD_PORT_Number port_number, UCPD_Policy_Event event)
 
 //       port->pe_prl_cad.buffers[UCPD_TX_BUFFER_INDEX].msg.body.snk_rdo.capability_mismatch = 0u;
 
-       if(port->pe_prl_cad.epr_mode == UCPD_TRUE)
+       if(port->pe_prl_cad.epr_mode )
        {
-        UCPD_POLICY_SelectEPR(port_number, 8u, 150u, 40u, UCPD_FALSE);
-        // UCPD_POLICY_SelectAVS(port_number, 9, 160, 50, UCPD_FALSE);
+        // UCPD_POLICY_SelectEPR(port_number, 2u, 150u, 40u, false);
+        UCPD_POLICY_SelectAPDO(port_number, 6u, 300u, 40u, false);
+        // UCPD_POLICY_SelectAVS(port_number, 9, 160, 50, false);
        } else {
-        UCPD_POLICY_SelectFixedSupply(port_number, 2u, 150u, 40u, UCPD_FALSE);
+        // UCPD_POLICY_SelectFixedSupply(port_number, 2u, 150u, 40u, false);
+        UCPD_POLICY_SelectAPDO(port_number, 6u, 300u, 40u, false);
        }
-//      UCPD_POLICY_SelectAPDO(port_number, 6u, 300u, 40u, UCPD_FALSE);
+//      UCPD_POLICY_SelectAPDO(port_number, 6u, 300u, 40u, false);
 
       break;
     }
@@ -159,28 +161,12 @@ int main(void)
  TRACE_QueueString(TRACE_GetSystemStatus());
   TRACE_INFO("Hello World\n\r");
 
-  UCPD_MSG msg;
-  CLEAR_STRUCT_VAL(msg);
-
-  msg.msg.body.src_pdos[0].FixedSupply.b.max_current10mA = 300u;
-  msg.msg.body.src_pdos[0].FixedSupply.b.voltage50mV = 100u;
-
-  CLEAR_STRUCT_VAL(msg);
-
-  msg.msg.body.snk_rdo.FixedSupply.op_current10mA = 20u;
-  msg.msg.body.snk_rdo.FixedSupply.max_current10mA = 20u;
-  msg.msg.body.snk_rdo.object_pos = 6u;
-
-  CLEAR_STRUCT_VAL(msg);
-
-  msg.msg.header.extended = 1u;
-  msg.msg.ext_message.ext_header.data_size = 100u;
 
   UCPD_Config config;
   UCPD_InitConfig(&config);
   config.policy = Policy;
 
-  UCPD_Init(0, &config);
+  UCPD_Init(&config);
 
   // UCPD_TIM_Init(0);
 
@@ -199,10 +185,11 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    if(waiting_for_epr == UCPD_FALSE)
+    continue;
+    if(waiting_for_epr == false)
     {
       UCPD_Status status = UCPD_EnterEPR(0, 120);
-      waiting_for_epr = UCPD_TRUE;
+      waiting_for_epr = true;
     }
 //	  ucpd_check_run();
 //	          __NOP();

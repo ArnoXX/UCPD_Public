@@ -1,12 +1,12 @@
 #ifndef UCPD_PE_PRL_CAD_H
 #define UCPD_PE_PRL_CAD_H
 
+#include "ucpd.h"
 #include "ucpd/ucpd_port_num.h"
 #include "ucpd/ucpd_typec.h"
 #include "ucpd_pe_sm.h"
 #include "ucpd_prl_sm.h"
-#include "ucpd_utils.h"
-
+#include <stdint.h>
 
 #define UCPD_BUFFER_COUNT 4u
 #define UCPD_RX_BUFFER_INDEX 0u
@@ -15,6 +15,7 @@
 #define UCPD_EXT_TX_BUFFER_INDEX 3u
 
 typedef enum {
+  PE_PRL_CAD_EVENT_NONE,
   /* CAD events */
   PE_PRL_EVENT_PRL_INIT,
 
@@ -70,12 +71,12 @@ typedef enum {
   PE_PRL_EVENT_DPM_REQUEST_EPR_MODE_EXIT,
   PE_PRL_EVENT_DPM_REQUEST_FIXED_SUPPLY,
   PE_PRL_EVENT_DPM_REQUEST_PPS,
-  PE_PRL_EVENT_DPM_REQUEST_EPR,
-
-  PE_PRL_CAD_EVENT_NONE
+  PE_PRL_EVENT_DPM_REQUEST_EPR
 } UCPD_PE_PRL_CAD_Event;
 
 typedef struct {
+  UCPD_PORT_Number port_number;
+
   UCPD_PE_PRL_CAD_Event phy_event;
   UCPD_PE_PRL_CAD_Event pwr_event;
   UCPD_PE_PRL_CAD_Event timer_event;
@@ -93,69 +94,121 @@ typedef struct {
 
   UCPD_CAD_SM_State cad_state;
 
-  volatile UCPD_Bool txAllowed;
-
-  UCPD_COUNTER counters[UCPD_CNT_NUMBER];
+  volatile bool txAllowed;
 
   // power
-  UCPD_Bool vbusDet;
-  UCPD_Bool tccDeb;
-  UCPD_Bool vS0tovS5trans;
-  UCPD_Bool hardResetActive;
+  bool vbusDet;
+  bool tccDeb;
+  bool vS0tovS5trans;
+  bool hardResetActive;
 
   // pe
-  UCPD_Bool pps_contract;
-  UCPD_Bool explicit_contract;
-  UCPD_Bool ams;
-  UCPD_Bool ams_first_sent;
-  UCPD_Bool pps_periodic_expired;
-  UCPD_Bool epr_mode;
-  UCPD_Bool response_expected;
-  UCPD_Bool entering_epr;
+  bool pps_contract;
+  bool explicit_contract;
+  bool ams;
+  bool ams_first_sent;
+  bool pps_periodic_expired;
+  bool epr_mode;
+  bool response_expected;
+  bool entering_epr;
 
-  UCPD_Count chunk_number_expected;
-  UCPD_Count chunk_number_to_send;
-  UCPD_Count num_bytes_received;
-  UCPD_Bool lastChunk;
-  UCPD_Bool extended_message;
+  uint8_t chunk_number_expected;
+  uint8_t chunk_number_to_send;
+  uint8_t num_bytes_received;
+  bool lastChunk;
+  bool extended_message;
 
   // prl
-  UCPD_Count storedMID;
-  UCPD_Bool midStored;
+  uint8_t storedMID;
+  bool midStored;
 
-  UCPD_Count txSize;
+  uint16_t txSize;
 
   // hard reset
-  UCPD_Bool hrdOriginPE;
+  bool hrdOriginPE;
 
   UCPD_MSG buffers[UCPD_BUFFER_COUNT];
 
+  // data storage
+#ifdef UCPD_ENABLE_SINK_PDO_STORAGE
+  UCPD_SNK_PDO snk_pdos[UCPD_MAX_PDO_NUM];
+#endif
+  UCPD_SRC_PDO src_pdos[UCPD_MAX_PDO_NUM + UCPD_MAX_EPR_PDO_NUM];
+  uint8_t snk_src_pdo_count;
+  uint8_t snk_pdo_count;
+
+  // api
+  UCPD_Callback current_callback;
+  volatile bool sync_operation;
 } UCPD_PE_PRL_CAD_Module;
 
 /* PE_PRL_CAD module functions */
 /* Init the PE_PRL_CAD module */
-void UCPD_PE_PRL_CAD_Init(UCPD_PORT_Number port_number);
+void UCPD_PE_PRL_CAD_Init(UCPD_PORT_Number port_number, UCPD_PE_PRL_CAD_Module *pe_prl_cad);
 
 /* Reset the PE_PRL_CAD module */
-void UCPD_PE_PRL_CAD_Reset(UCPD_PORT_Number port_number);
+void UCPD_PE_PRL_CAD_Reset(UCPD_PE_PRL_CAD_Module *pe_prl_cad);
 
 /* PE_PRL_CAD event handler - to be called from ISR */
 void UCPD_PE_PRL_CAD_Handler(UCPD_PORT_Number port_number);
 
-/* State machine update functions */
-/* Processes CAD, PRL and PE state machines */
-void UCPD_PE_PRL_CAD_SM_Delta(UCPD_PORT_Number port_number);
 
-/* CAD SM delta function */
-void UCPD_CAD_SM_Delta(UCPD_PORT_Number port_number,
-                       UCPD_PE_PRL_CAD_Event event);
 
-/* PRL SM delta function */
-void UCPD_PRL_SM_Delta(UCPD_PORT_Number port_number,
-                       UCPD_PE_PRL_CAD_Event event);
-
+/* PE functions */
 /* PE SM delta function */
-void UCPD_PE_SM_Delta(UCPD_PORT_Number port_number,
+void UCPD_PE_SM_Delta(UCPD_PE_PRL_CAD_Module *pe_prl_cad,
                       UCPD_PE_PRL_CAD_Event event);
+
+/* SRT enter function */
+void UCPD_PE_SM_SRT_Enter(UCPD_PE_PRL_CAD_Module *pe_prl_cad,
+                          UCPD_PE_SM_SRT_State state);
+
+/* SNK enter function */
+void UCPD_PE_SM_SNK_Enter(UCPD_PE_PRL_CAD_Module *pe_prl_cad,
+                          UCPD_PE_SM_SNK_State state);
+
+/* SNK exit function */
+void UCPD_PE_SM_SNK_Exit(UCPD_PE_PRL_CAD_Module *pe_prl_cad,
+                         UCPD_PE_SM_SNK_State state);
+
+
+/* CAD functions*/
+/* CAD SM delta function */
+void UCPD_CAD_SM_Delta(UCPD_PE_PRL_CAD_Module *pe_prl_cad,
+                       UCPD_PE_PRL_CAD_Event event);
+
+/* Enter the CAD SM state */
+void UCPD_CAD_SM_Enter(UCPD_PE_PRL_CAD_Module *pe_prl_cad,
+                       UCPD_CAD_SM_State state);
+
+                       
+/* PRL functions */
+/* PRL SM delta function */
+void UCPD_PRL_SM_Delta(UCPD_PE_PRL_CAD_Module *pe_prl_cad,
+                       UCPD_PE_PRL_CAD_Event event);
+
+/* Enter the protocol layer chunked reception state machine state */
+void UCPD_PRL_SM_CHUNKED_RX_Enter(UCPD_PE_PRL_CAD_Module *pe_prl_cad,
+                                  UCPD_PRL_SM_CHUNKED_RX_State state);
+
+/* Enter the protocol layer chunked transmission state machine state */
+void UCPD_PRL_SM_CHUNKED_TX_Enter(UCPD_PE_PRL_CAD_Module *pe_prl_cad,
+                                  UCPD_PRL_SM_CHUNKED_TX_State state);
+
+/* Enter the protocol layer chunked message router state machine state */
+void UCPD_PRL_SM_CHUNKED_ROUTER_Enter(UCPD_PE_PRL_CAD_Module *pe_prl_cad,
+                                      UCPD_PRL_SM_CHUNKED_ROUTER_State state);
+
+/* Enter the protocol layer transmission state machine state */
+void UCPD_PRL_SM_TX_Enter(UCPD_PE_PRL_CAD_Module *pe_prl_cad,
+                          UCPD_PRL_SM_TX_State state);
+
+/* Enter the protocol layer reception state machine state */
+void UCPD_PRL_SM_RX_Enter(UCPD_PE_PRL_CAD_Module *pe_prl_cad,
+                          UCPD_PRL_SM_RX_State state);
+
+/* Enter the protocol layer hard reset state machine state */
+void UCPD_PRL_SM_HRD_Enter(UCPD_PE_PRL_CAD_Module *pe_prl_cad,
+                           UCPD_PRL_SM_HR_State state);
 
 #endif

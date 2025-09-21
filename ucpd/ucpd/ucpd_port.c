@@ -2,44 +2,48 @@
 #include "ucpd.h"
 #include "ucpd/ucpd_ctx.h"
 #include "ucpd/ucpd_dpm.h"
+#include "ucpd/ucpd_hw.h"
 #include "ucpd/ucpd_pe_prl.h"
 
+
 UCPD_Status UCPD_PORT_Init(UCPD_PORT_Number port_number) {
- 
 
   UCPD_PORT_INSTANCE *port = UCPD_CTX_GetPortInstance(port_number);
 
-  if(port->initialized == UCPD_TRUE)
+  if (port->initialized)
     return UCPD_STATUS_INITIALIZED;
 
-  CLEAR_STRUCT_PTR(port);
+  *port = (UCPD_PORT_INSTANCE){0};
 
-  port->pe_prl_cad.buffers[UCPD_TX_BUFFER_INDEX].msg.header.port_data_role =
-      UCPD_PORT_DATA_ROLE_UFP;
-  port->pe_prl_cad.buffers[UCPD_TX_BUFFER_INDEX].msg.header.spec_revision =
-      UCPD_SPEC_REVISION_3_0;
-  port->pe_prl_cad.buffers[UCPD_TX_BUFFER_INDEX].msg.header.port_power_role =
-      UCPD_PORT_POWER_ROLE_SINK;
+  // init pe_prl_cad
+  UCPD_PE_PRL_CAD_Init(port_number, &port->pe_prl_cad);
 
-  port->pe_prl_cad.phy_event = PE_PRL_CAD_EVENT_NONE;
-  port->pe_prl_cad.pwr_event = PE_PRL_CAD_EVENT_NONE;
-  port->pe_prl_cad.timer_event = PE_PRL_CAD_EVENT_NONE;
+  // init hw handle
+  port->port_handle = (UCPD_HW_PORT_Handle){
+      .instance = UCPD_INSTANCE,
+      .cc = UCPD_CCNONE,
+      .rxData = NULL,
+      .txData = NULL,
+  };
 
-  for(UCPD_CNT cnt = 0; cnt < UCPD_CNT_NUMBER; cnt++)
-    {
-        UCPD_CNT_Init(port_number, cnt);
-    }
+  UCPD_PHY_Init(port_number);
 
-  // Init CAD
-  UCPD_CAD_Init(port_number);
+  UCPD_PHY_AssertRd(port_number);
 
+  // init PWR
+  UCPD_PWR_SM_Init(&port->pwr_sm);
+
+  // init timers
   UCPD_TIM_Init(port_number);
 
-  UCPD_PWR_Init(port_number);
+  // init counters
+  for (UCPD_CNT cnt = 0; cnt < UCPD_CNT_NUMBER; cnt++) {
+    UCPD_CNT_Init(port_number, cnt);
+  }
 
-  UCPD_CAD_Start(port_number);
+  UCPD_CAD_Start(port_number); // move this somewhere else
 
-  port->initialized = UCPD_TRUE;
+  port->initialized = true;
 
   return UCPD_STATUS_SUCCESS;
 }

@@ -7,6 +7,7 @@
 /* Interrupt utilities */
 
 #define CHECK_STATUS(status, flag) (flag == (status & flag))
+#define CLEAR_STATUS(status, flag) (status &= ~flag)
 
 /* STM32 PD Peripheral driver instance */
 #define UCPD_INSTANCE_TYPE UCPD_TypeDef

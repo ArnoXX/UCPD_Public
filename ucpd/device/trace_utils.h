@@ -160,9 +160,9 @@ void TRACE_QueueString(const char *str);
 
 /**
  * @brief Check if trace queue has space
- * @return UCPD_TRUE if queue can accept more strings, UCPD_FALSE if full
+ * @return true if queue can accept more strings, false if full
  */
-UCPD_Bool TRACE_IsQueueReady(void);
+bool TRACE_IsQueueReady(void);
 
 /**
  * @brief Get number of pending strings in queue

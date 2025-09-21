@@ -21,7 +21,6 @@ typedef enum {
 
 typedef struct {
   UCPD_Policy policy;
-
 } UCPD_Config;
 
 typedef void (*UCPD_Callback)(UCPD_Status);
@@ -31,18 +30,18 @@ UCPD_Status UCPD_PORT_Init(UCPD_PORT_Number port_number);
 
 UCPD_Status UCPD_InitConfig(UCPD_Config *config);
 
-UCPD_Status UCPD_Init(UCPD_PORT_Number port_number, UCPD_Config *config);
-UCPD_Status UCPD_Deinit(UCPD_PORT_Number port_number);
+UCPD_Status UCPD_Init(UCPD_Config *config);
+UCPD_Status UCPD_Deinit(void);
 
 
 /* Blocking functions */
 UCPD_Status UCPD_GetPDOs(UCPD_PORT_Number port_number,
                          UCPD_SRC_PDO **const src_pdos,
-                         UCPD_Count *src_pdo_count);
+                         uint8_t *src_pdo_count);
 
 
 
-UCPD_Status UCPD_EnterEPR(UCPD_PORT_Number port_number, UCPD_Count power_rating);
+UCPD_Status UCPD_EnterEPR(UCPD_PORT_Number port_number, uint8_t power_rating);
 UCPD_Status UCPD_ExitEPR(UCPD_PORT_Number port_number);
 
 
@@ -55,10 +54,10 @@ UCPD_Status UCPD_ExitEPR(UCPD_PORT_Number port_number);
 @param operating_current - the operating current to request in 10mA increments
 */
 UCPD_Status UCPD_RequestFixedSupply(UCPD_PORT_Number port_number,
-                                    UCPD_Count pdo_number,
-                                    UCPD_Count max_current,
-                                    UCPD_Count operating_current,
-                                    UCPD_Bool capability_mismatch);
+                                    uint8_t pdo_number,
+                                    uint16_t max_current_10mA,
+                                    uint16_t operating_current_10mA,
+                                    bool capability_mismatch);
 
 /*
 @param pdo_number - the PDO number to request
@@ -67,22 +66,22 @@ UCPD_Status UCPD_RequestFixedSupply(UCPD_PORT_Number port_number,
 @param capability_mismatch - whether to request a capability mismatch
 */
 UCPD_Status UCPD_RequestAPDO(UCPD_PORT_Number port_number,
-                             UCPD_Count pdo_number,
-                             UCPD_Count output_voltage_20mV,
-                             UCPD_Count current_limit_50mA,
-                             UCPD_Bool capability_mismatch);
+                             uint8_t pdo_number,
+                             uint16_t output_voltage_20mV,
+                             uint16_t current_limit_50mA,
+                             bool capability_mismatch);
 
 UCPD_Status UCPD_RequestEPR(UCPD_PORT_Number port_number,
-                            UCPD_Count pdo_number,
-                            UCPD_Count max_current,
-                            UCPD_Count operating_current,
-                            UCPD_Bool capability_mismatch);
+                            uint8_t pdo_number,
+                            uint16_t max_current_10mA,
+                            uint16_t operating_current_10mA,
+                            bool capability_mismatch);
 
 UCPD_Status UCPD_RequestAVS(UCPD_PORT_Number port_number,
-                            UCPD_Count pdo_number,
-                            UCPD_Count out_voltage_100mV,
-                            UCPD_Count current_limit_50mA,
-                            UCPD_Bool capability_mismatch);
+                            uint8_t pdo_number,
+                            uint16_t out_voltage_100mV,
+                            uint16_t current_limit_50mA,
+                            bool capability_mismatch);
 
 
 /* Async functions */
@@ -93,10 +92,10 @@ UCPD_Status UCPD_RequestAVS(UCPD_PORT_Number port_number,
 @param callback - the callback to call when the request is complete
 */
 UCPD_Status UCPD_RequestFixedSupplyAsync(UCPD_PORT_Number port_number,
-                                         UCPD_Count pdo_number,
-                                         UCPD_Count max_current,
-                                         UCPD_Count operating_current,
-                                         UCPD_Bool capability_mismatch,
+                                         uint8_t pdo_number,
+                                         uint16_t max_current_10mA,
+                                         uint16_t operating_current_10mA,
+                                         bool capability_mismatch,
                                          UCPD_Callback callback);
 
 /*
@@ -107,53 +106,53 @@ UCPD_Status UCPD_RequestFixedSupplyAsync(UCPD_PORT_Number port_number,
 @param callback - the callback to call when the request is complete
 */
 UCPD_Status UCPD_RequestAPDOAsync(UCPD_PORT_Number port_number,
-                                  UCPD_Count pdo_number,
-                                  UCPD_Count output_voltage_20mV,
-                                  UCPD_Count current_limit_50mA,
-                                  UCPD_Bool capability_mismatch,
+                                  uint8_t pdo_number,
+                                  uint16_t output_voltage_20mV,
+                                  uint16_t current_limit_50mA,
+                                  bool capability_mismatch,
                                   UCPD_Callback callback);
 
 UCPD_Status UCPD_RequestEPRAsync(UCPD_PORT_Number port_number,
-                                 UCPD_Count pdo_number,
-                                 UCPD_Count max_current,
-                                 UCPD_Count operating_current,
-                                 UCPD_Bool capability_mismatch,
+                                 uint8_t pdo_number,
+                                 uint16_t max_current_10mA,
+                                 uint16_t operating_current_10mA,
+                                 bool capability_mismatch,
                                  UCPD_Callback callback);
 
 UCPD_Status UCPD_RequestAVSAsync(UCPD_PORT_Number port_number,
-                                 UCPD_Count pdo_number,
-                                 UCPD_Count out_voltage_100mV,
-                                 UCPD_Count current_limit_50mA,
-                                 UCPD_Bool capability_mismatch,
+                                 uint8_t pdo_number,
+                                 uint16_t out_voltage_100mV,
+                                 uint16_t current_limit_50mA,
+                                 bool capability_mismatch,
                                  UCPD_Callback callback);
 
 
-UCPD_Status UCPD_EnterEPRAsync(UCPD_PORT_Number port_number, UCPD_Count power_rating, UCPD_Callback callback);
+UCPD_Status UCPD_EnterEPRAsync(UCPD_PORT_Number port_number, uint8_t power_rating, UCPD_Callback callback);
 UCPD_Status UCPD_ExitEPRAsync(UCPD_PORT_Number port_number, UCPD_Callback callback);
 
 void UCPD_POLICY_SelectFixedSupply(UCPD_PORT_Number port_number,
-                                    UCPD_Count pdo_number,
-                                    UCPD_Count max_current,
-                                    UCPD_Count operating_current,
-                                    UCPD_Bool capability_mismatch);
+                                    uint8_t pdo_number,
+                                    uint16_t max_current_10mA,
+                                    uint16_t operating_current_10mA,
+                                    bool capability_mismatch);
 
 void UCPD_POLICY_SelectAPDO(UCPD_PORT_Number port_number,
-                            UCPD_Count pdo_number,
-                            UCPD_Count output_voltage_20mV,
-                            UCPD_Count current_limit_50mA,
-                            UCPD_Bool capability_mismatch);
+                            uint8_t pdo_number,
+                            uint16_t output_voltage_20mV,
+                            uint16_t current_limit_50mA,
+                            bool capability_mismatch);
 
 void UCPD_POLICY_SelectAVS(UCPD_PORT_Number port_number,
-                           UCPD_Count pdo_number,
-                           UCPD_Count out_voltage_100mV,
-                           UCPD_Count current_limit_50mA,
-                           UCPD_Bool capability_mismatch);
+                           uint8_t pdo_number,
+                           uint16_t out_voltage_100mV,
+                           uint16_t current_limit_50mA,
+                           bool capability_mismatch);
 
 void UCPD_POLICY_SelectEPR(UCPD_PORT_Number port_number,
-                           UCPD_Count pdo_number,
-                           UCPD_Count max_current,
-                           UCPD_Count operating_current,
-                           UCPD_Bool capability_mismatch);
+                           uint8_t pdo_number,
+                           uint16_t max_current_10mA,
+                           uint16_t operating_current_10mA,
+                           bool capability_mismatch);
 
 
 

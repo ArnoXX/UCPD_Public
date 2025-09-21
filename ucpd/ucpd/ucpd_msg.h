@@ -171,6 +171,11 @@ typedef __PACKED_STRUCT {
 }
 UCPD_MSG_HEADER;
 
+static const UCPD_MSG_HEADER UCPD_MSG_HEADER_INIT = {
+    .port_data_role = UCPD_PORT_DATA_ROLE_UFP,
+    .spec_revision = UCPD_SPEC_REVISION_3_0,
+    .port_power_role = UCPD_PORT_POWER_ROLE_SINK};
+
 typedef __PACKED_STRUCT {
   uint16_t data_size : 9u; // number of bytes in message in total, multiple of 4
                            // bytes
@@ -316,7 +321,8 @@ typedef __PACKED_UNION {
       uint32_t op_current10mA : 10u;
     uint32_t:
       2u;
-    } FixedSupply;
+    }
+    FixedSupply;
     __PACKED_STRUCT { // pps apdo
       uint32_t op_current50mA : 7u;
     uint32_t:
@@ -324,7 +330,8 @@ typedef __PACKED_UNION {
       uint32_t out_voltage20mV : 12u;
     uint32_t:
       1u;
-    } PPS;
+    }
+    PPS;
     __PACKED_STRUCT // avs epr
     {
       uint32_t op_current50mA : 7u;
@@ -480,38 +487,36 @@ typedef __PACKED_STRUCT {
 }
 UCPD_EPR_REQUEST;
 
+typedef __PACKED_UNION {
+  UCPD_SNK_PDO snk_pdos[UCPD_MAX_PDO_NUM];
+  UCPD_SNK_RDO snk_rdo;
+  UCPD_SRC_PDO src_pdos[UCPD_MAX_PDO_NUM];
+  UCPD_SRC_PDO epr_pdos[UCPD_MAX_PDO_NUM + UCPD_MAX_EPR_PDO_NUM];
+  UCPD_ECDB epr_ecdb;
+  UCPD_EPRMDO epr_mdo;
+  UCPD_EPR_REQUEST epr_request;
+}
+UCPD_MSG_BODY;
+
+typedef __PACKED_STRUCT {
+  UCPD_MSG_EXT_HEADER ext_header;
+  UCPD_MSG_BODY body;
+}
+UCPD_EXT_MSG;
+
 /* Generalized message typedef */
 typedef __PACKED_UNION {
   uint8_t buffer[UCPD_EPR_MESSAGE_LEN];
   __PACKED_STRUCT {
     UCPD_MSG_HEADER header;
     __PACKED_UNION {
-      __PACKED_STRUCT {
-        UCPD_MSG_EXT_HEADER ext_header;
-        __PACKED_UNION {
-          UCPD_SNK_PDO snk_pdos[UCPD_MAX_PDO_NUM];
-          UCPD_SNK_RDO snk_rdo;
-          UCPD_SRC_PDO src_pdos[UCPD_MAX_PDO_NUM];
-          UCPD_SRC_PDO epr_pdos[UCPD_MAX_PDO_NUM + UCPD_MAX_EPR_PDO_NUM];
-          UCPD_ECDB epr_ecdb;
-        }
-        body;
-      }
-      ext_message;
-      __PACKED_UNION {
-        UCPD_SNK_PDO snk_pdos[UCPD_MAX_PDO_NUM];
-        UCPD_SNK_RDO snk_rdo;
-        UCPD_SRC_PDO src_pdos[UCPD_MAX_PDO_NUM];
-        UCPD_SRC_PDO epr_pdos[UCPD_MAX_PDO_NUM + UCPD_MAX_EPR_PDO_NUM];
-        UCPD_ECDB epr_ecdb;
-        UCPD_EPRMDO epr_mdo;
-        UCPD_EPR_REQUEST epr_request;
-      }
-      body;
+      UCPD_EXT_MSG ext_message;
+      UCPD_MSG_BODY body;
     };
-  }
-  msg;
+  };
 }
 UCPD_MSG;
+
+static const UCPD_MSG UCPD_MSG_INIT = {.header = UCPD_MSG_HEADER_INIT};
 
 #endif // UCPD_MSG_H

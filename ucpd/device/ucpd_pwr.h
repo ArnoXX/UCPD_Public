@@ -26,24 +26,22 @@ typedef enum {
 /* Power transition state machine */
 typedef struct {
   UCPD_PWR_SM_State state;
-  UCPD_Bool vbus_vS0_to_vS5; // there is not just v5 on the bus, but there was a
+  bool vbus_vS0_to_vS5; // there is not just v5 on the bus, but there was a
                              // transition from v0 to v5
-  UCPD_Bool exited_v0; // it means we exited v0 to transient
+  bool exited_v0; // it means we exited v0 to transient
 } UCPD_PWR_SM;
 
 void UCPD_PWR_SM_Init(UCPD_PWR_SM *sm);
 
-void UCPD_PWR_SM_Delta(UCPD_PWR_SM *sm, UCPD_Voltage vbus_voltage);
+void UCPD_PWR_SM_Delta(UCPD_PWR_SM *sm, uint16_t vbus_voltage);
 
 /* Power management functions */
-void UCPD_PWR_Init(UCPD_PORT_Number port_number);
-
-UCPD_Voltage UCPD_PWR_GetVbusVoltage(UCPD_PWR_SM *sm);
+uint16_t UCPD_PWR_GetVbusVoltage(UCPD_PWR_SM *sm);
 
 // has side effect: sm.vbus_vS0_to_vS5 is set to false when called
-UCPD_Bool UCPD_PWR_vS0_to_vS5(UCPD_PORT_Number port_number);
+bool UCPD_PWR_vS0_to_vS5(UCPD_PORT_Number port_number);
 
-UCPD_Bool UCPD_PWR_IsVbusPresent(UCPD_PORT_Number port_number);
+bool UCPD_PWR_IsVbusPresent(UCPD_PORT_Number port_number);
 
 /* Power management hardware abstraction functions */
 void UCPD_PWR_ConversionCallback();

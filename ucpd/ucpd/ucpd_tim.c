@@ -3,7 +3,7 @@
 #include "ucpd/ucpd_hw.h"
 #include "ucpd_ctx.h"
 
-extern UCPD_Bool waiting_for_epr;
+extern bool waiting_for_epr;
 
 static void timer_expired_trace(UCPD_TIM timer) {
   switch (timer) {
@@ -118,7 +118,7 @@ void timer_stop_trace(UCPD_TIM timer) {
     TRACE_TIMER_STOP("HARD_RESET_COMPLETE\n\r");
     break;
   case UCPD_TIM_PS_TRANSITION:
-	  waiting_for_epr = UCPD_FALSE;
+	  waiting_for_epr = false;
     TRACE_TIMER_STOP("PS_TRANSITION\n\r");
     break;
   case UCPD_TIM_SENDER_RESPONSE:
@@ -146,6 +146,10 @@ void timer_stop_trace(UCPD_TIM timer) {
 
 void UCPD_TIM_Start(UCPD_PORT_Number port_number, UCPD_TIM timer) {
   UCPD_PORT_INSTANCE *port = UCPD_CTX_GetPortInstance(port_number);
+  if (timer == UCPD_TIM_NONE || timer == UCPD_TIM_NUMBER) {
+    TRACE_ERROR("Invalid timer\n\r");
+    return;
+  }
   port->ucpd_tim_at_channel[UCPD_TIMER_CHANNEL[timer]] = timer;
   UCPD_HW_Timer_Start(UCPD_GET_HW_CHANNEL(UCPD_TIMER_CHANNEL[timer]), UCPD_TIMERS_PERIODS[timer]);
   timer_start_trace(timer);
@@ -153,10 +157,13 @@ void UCPD_TIM_Start(UCPD_PORT_Number port_number, UCPD_TIM timer) {
 
 void UCPD_TIM_Stop(UCPD_PORT_Number port_number, UCPD_TIM timer) {
   UCPD_PORT_INSTANCE *port = UCPD_CTX_GetPortInstance(port_number);
-  if (timer < UCPD_TIM_NUMBER &&
-      port->ucpd_tim_at_channel[UCPD_TIMER_CHANNEL[timer]] == timer) {
+  if (timer == UCPD_TIM_NONE || timer == UCPD_TIM_NUMBER) {
+    TRACE_ERROR("Invalid timer\n\r");
+    return;
+  }
+  if (port->ucpd_tim_at_channel[UCPD_TIMER_CHANNEL[timer]] == timer) {
     UCPD_HW_Timer_Stop(UCPD_GET_HW_CHANNEL(UCPD_TIMER_CHANNEL[timer]));
-    port->ucpd_tim_at_channel[UCPD_TIMER_CHANNEL[timer]] = UCPD_TIM_NUMBER;
+    port->ucpd_tim_at_channel[UCPD_TIMER_CHANNEL[timer]] = UCPD_TIM_NONE;
     timer_stop_trace(timer);
   }
 }
@@ -166,7 +173,7 @@ void UCPD_TIM_Expired(UCPD_PORT_Number port_number, uint32_t timer_channel) {
   UCPD_TIM timer = port->ucpd_tim_at_channel[timer_channel];
   if (timer < UCPD_TIM_NUMBER) {
 
-    port->ucpd_tim_at_channel[timer_channel] = UCPD_TIM_NUMBER;
+    port->ucpd_tim_at_channel[timer_channel] = UCPD_TIM_NONE;
 
     UCPD_PE_PRL_CAD_Module *pe_prl = &port->pe_prl_cad;
     UCPD_PE_PRL_CAD_Event event = UCPD_TIMERS_EVENTS[timer];

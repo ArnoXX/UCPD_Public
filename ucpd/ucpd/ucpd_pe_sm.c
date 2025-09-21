@@ -15,11 +15,11 @@
 
 UCPD_PE_SM_SNK_State getPEStateToEnterOnReceive(UCPD_MSG *msg) {
 
-  if (msg->msg.header.extended == 1u) {
+  if (msg->header.extended == 1u) {
 
-    switch (msg->msg.header.message_type) {
+    switch (msg->header.message_type) {
     case UCPD_EXTENDED_CONTROL_MSG_ID: {
-      if (msg->msg.ext_message.body.epr_ecdb.type ==
+      if (msg->ext_message.body.epr_ecdb.type ==
           UCPD_EPR_KEEP_ALIVE_ACK_EXT_MSG_ID) {
         TRACE_MSG_RX("EPR keep alive acknowledged\n\r");
         return PE_SNK_STATE_READY;
@@ -36,7 +36,7 @@ UCPD_PE_SM_SNK_State getPEStateToEnterOnReceive(UCPD_MSG *msg) {
     }
   } else {
     // TODO: finish this
-    switch (msg->msg.header.message_type) {
+    switch (msg->header.message_type) {
     case UCPD_SOURCE_CAPABILITIES_MSG_ID: {
       TRACE_MSG_RX("Source capabilities message received\n\r");
       return PE_SNK_STATE_EVALUATE_CAPABILITY;
@@ -58,16 +58,16 @@ UCPD_PE_SM_SNK_State getPEStateToEnterOnReceive(UCPD_MSG *msg) {
       return PE_SNK_STATE_NONE;
     }
     case UCPD_EPR_MODE_MSG_ID: {
-      if (msg->msg.body.epr_mdo.action == UCPD_EPR_ACTION_ENTER_ACK) {
+      if (msg->body.epr_mdo.action == UCPD_EPR_ACTION_ENTER_ACK) {
         TRACE_MSG_RX("EPR enter acknowledged\n\r");
         return PE_SNK_STATE_EPR_MODE_ENTRY_WAIT_FOR_RESPONSE;
-      } else if (msg->msg.body.epr_mdo.action != UCPD_EPR_ACTION_ENTER_SUCC) {
+      } else if (msg->body.epr_mdo.action != UCPD_EPR_ACTION_ENTER_SUCC) {
         TRACE_MSG_RX("EPR enter failed\n\r");
         return PE_SNK_STATE_SEND_SOFT_RESET;
-      } else if (msg->msg.body.epr_mdo.action == UCPD_EPR_ACTION_ENTER_SUCC) {
+      } else if (msg->body.epr_mdo.action == UCPD_EPR_ACTION_ENTER_SUCC) {
         TRACE_MSG_RX("EPR enter successful\n\r");
         return PE_SNK_STATE_WAIT_FOR_CAPABILITIES;
-      } else if (msg->msg.body.epr_mdo.action == UCPD_EPR_ACTION_EXIT) {
+      } else if (msg->body.epr_mdo.action == UCPD_EPR_ACTION_EXIT) {
         TRACE_MSG_RX("EPR exit message received\n\r");
         return PE_SNK_STATE_EPR_MODE_EXIT_RECEIVED;
       }
@@ -85,11 +85,11 @@ UCPD_PE_SM_SNK_State getPEStateToEnterOnReceive(UCPD_MSG *msg) {
 UCPD_PE_SM_SNK_State getPEStateToEnterOnTransmit(UCPD_MSG *msg) {
   // TODO: finish this
 
-  if (msg->msg.header.extended == 1u) {
-    msg->msg.header.extended = 0u;
+  if (msg->header.extended == 1u) {
+    msg->header.extended = 0u;
 
   } else {
-    switch (msg->msg.header.message_type) {
+    switch (msg->header.message_type) {
     // we do not transition from select capability state on sending the request
     case UCPD_REQUEST_MSG_ID: {
       TRACE_MSG_TX("Request message transmitted\n\r");
@@ -108,7 +108,7 @@ UCPD_PE_SM_SNK_State getPEStateToEnterOnTransmit(UCPD_MSG *msg) {
       return PE_SNK_STATE_NONE;
     }
     case UCPD_EPR_MODE_MSG_ID: {
-      if (msg->msg.body.epr_mdo.action == UCPD_EPR_ACTION_EXIT) {
+      if (msg->body.epr_mdo.action == UCPD_EPR_ACTION_EXIT) {
         TRACE_MSG_TX("EPR exit message transmitted\n\r");
         return PE_SNK_STATE_WAIT_FOR_CAPABILITIES;
       }
@@ -126,106 +126,88 @@ UCPD_PE_SM_SNK_State getPEStateToEnterOnTransmit(UCPD_MSG *msg) {
   return PE_SNK_STATE_NONE;
 }
 
-extern UCPD_Bool waiting_for_epr;
+extern bool waiting_for_epr;
 
-void UCPD_PE_SM_Delta(UCPD_PORT_Number port_number,
+void UCPD_PE_SM_Delta(UCPD_PE_PRL_CAD_Module *pe_prl_cad,
                       UCPD_PE_PRL_CAD_Event event) {
-
-  UCPD_PORT_INSTANCE *port = UCPD_CTX_GetPortInstance(port_number);
-
-  UCPD_PE_PRL_CAD_Module *pe_prl_cad = &port->pe_prl_cad;
+  UCPD_MSG *rx_msg = &pe_prl_cad->buffers[UCPD_RX_BUFFER_INDEX];
+  UCPD_MSG *tx_msg = &pe_prl_cad->buffers[UCPD_TX_BUFFER_INDEX];
 
   switch (event) {
 
   case PE_PRL_EVENT_PRL_INIT: {
-    UCPD_PE_SM_SRT_Enter(port_number, PE_SRT_STATE_STOPPED);
-    UCPD_PE_SM_SNK_Enter(port_number, PE_SNK_STATE_STARTUP);
 
-    pe_prl_cad->ams = UCPD_FALSE;
-    pe_prl_cad->explicit_contract = UCPD_FALSE;
-    pe_prl_cad->ams_first_sent = UCPD_FALSE;
-    pe_prl_cad->pps_contract = UCPD_FALSE;
-    pe_prl_cad->pps_periodic_expired = UCPD_FALSE;
-    pe_prl_cad->hardResetActive = UCPD_FALSE;
-    pe_prl_cad->hrdOriginPE = UCPD_FALSE;
-    pe_prl_cad->epr_mode = UCPD_FALSE;
-    pe_prl_cad->response_expected = UCPD_FALSE;
-    pe_prl_cad->entering_epr = UCPD_FALSE;
-    pe_prl_cad->extended_message = UCPD_FALSE;
-
+    UCPD_PE_SM_SRT_Enter(pe_prl_cad, PE_SRT_STATE_STOPPED);
+    UCPD_PE_SM_SNK_Enter(pe_prl_cad, PE_SNK_STATE_STARTUP);
     break;
   }
 
   case PE_PRL_EVENT_PE_START_SRT: {
-    UCPD_PE_SM_SRT_Enter(port_number, PE_SRT_STATE_RUNNING);
+    UCPD_PE_SM_SRT_Enter(pe_prl_cad, PE_SRT_STATE_RUNNING);
     break;
   }
 
   case PE_PRL_EVENT_PE_STOP_SRT: {
-    UCPD_PE_SM_SRT_Enter(port_number, PE_SRT_STATE_STOPPED);
+    UCPD_PE_SM_SRT_Enter(pe_prl_cad, PE_SRT_STATE_STOPPED);
     break;
   }
 
   case PE_PRL_EVENT_PE_TRANSMISSION_ERROR: {
     if (pe_prl_cad->snk_state == PE_SNK_STATE_SEND_SOFT_RESET)
-      UCPD_PE_SM_SNK_Enter(port_number, PE_SNK_STATE_HARD_RESET);
-    else if (pe_prl_cad->ams_first_sent == UCPD_FALSE &&
-             pe_prl_cad->explicit_contract == UCPD_TRUE)
-      UCPD_PE_SM_SNK_Enter(port_number, PE_SNK_STATE_READY);
+      UCPD_PE_SM_SNK_Enter(pe_prl_cad, PE_SNK_STATE_HARD_RESET);
+    else if (pe_prl_cad->ams_first_sent == false &&
+             pe_prl_cad->explicit_contract)
+      UCPD_PE_SM_SNK_Enter(pe_prl_cad, PE_SNK_STATE_READY);
     else
-      UCPD_PE_SM_SNK_Enter(port_number, PE_SNK_STATE_SEND_SOFT_RESET);
+      UCPD_PE_SM_SNK_Enter(pe_prl_cad, PE_SNK_STATE_SEND_SOFT_RESET);
     break;
   }
 
   case PE_PRL_EVENT_PE_MESSAGE_RECEIVED: {
 
-
-
     UCPD_PE_SM_SNK_State state_to_enter =
-        getPEStateToEnterOnReceive(&pe_prl_cad->buffers[UCPD_RX_BUFFER_INDEX]);
+        getPEStateToEnterOnReceive(rx_msg);
 
     // here the reset table will be applicable
 
     // first check against the table for reset cases
 
     // then special cases
-    if (pe_prl_cad->buffers[UCPD_RX_BUFFER_INDEX].msg.header.message_type ==
-        UCPD_REJECT_MSG_ID) {
-      if (pe_prl_cad->explicit_contract == UCPD_TRUE)
-        UCPD_PE_SM_SNK_Enter(port_number, PE_SNK_STATE_READY);
+    if (rx_msg->header.message_type == UCPD_REJECT_MSG_ID) {
+      if (pe_prl_cad->explicit_contract)
+        UCPD_PE_SM_SNK_Enter(pe_prl_cad, PE_SNK_STATE_READY);
       else
-        UCPD_PE_SM_SNK_Enter(port_number, PE_SNK_STATE_WAIT_FOR_CAPABILITIES);
+        UCPD_PE_SM_SNK_Enter(pe_prl_cad, PE_SNK_STATE_WAIT_FOR_CAPABILITIES);
 
       return;
     }
 
     // then enter the state
-    if(state_to_enter != PE_SNK_STATE_NONE)
-    	UCPD_PE_SM_SNK_Enter(port_number, state_to_enter);
+    if (state_to_enter != PE_SNK_STATE_NONE)
+      UCPD_PE_SM_SNK_Enter(pe_prl_cad, state_to_enter);
 
     break;
   }
 
   case PE_PRL_EVENT_PE_MESSAGE_SENT: {
 
-    if (pe_prl_cad->ams == UCPD_TRUE &&
-        pe_prl_cad->ams_first_sent == UCPD_FALSE)
-      pe_prl_cad->ams_first_sent = UCPD_TRUE;
+    if (pe_prl_cad->ams && pe_prl_cad->ams_first_sent == false)
+      pe_prl_cad->ams_first_sent = true;
 
     UCPD_PE_SM_SNK_State state_to_enter =
-        getPEStateToEnterOnTransmit(&pe_prl_cad->buffers[UCPD_TX_BUFFER_INDEX]);
+        getPEStateToEnterOnTransmit(tx_msg);
 
     if (state_to_enter != PE_SNK_STATE_NONE)
-      UCPD_PE_SM_SNK_Enter(port_number, state_to_enter);
+      UCPD_PE_SM_SNK_Enter(pe_prl_cad, state_to_enter);
 
-    if (pe_prl_cad->response_expected == UCPD_TRUE) {
-      UCPD_PE_SM_SRT_Enter(port_number, PE_SRT_STATE_RUNNING);
-      pe_prl_cad->response_expected = UCPD_FALSE;
+    if (pe_prl_cad->response_expected) {
+      UCPD_PE_SM_SRT_Enter(pe_prl_cad, PE_SRT_STATE_RUNNING);
+      pe_prl_cad->response_expected = false;
     }
 
-    if (pe_prl_cad->entering_epr == UCPD_TRUE) {
-      UCPD_TIM_Start(port_number, UCPD_TIM_SINK_EPR_ENTER);
-      pe_prl_cad->entering_epr = UCPD_FALSE;
+    if (pe_prl_cad->entering_epr) {
+      UCPD_TIM_Start(pe_prl_cad->port_number, UCPD_TIM_SINK_EPR_ENTER);
+      pe_prl_cad->entering_epr = false;
     }
     break;
   }
@@ -236,69 +218,69 @@ void UCPD_PE_SM_Delta(UCPD_PORT_Number port_number,
   }
 
   case PE_PRL_EVENT_PE_HARD_RESET_RECEIVED: {
-    UCPD_PE_SM_SNK_Enter(port_number, PE_SNK_STATE_TRANSITION_TO_DEFAULT);
+    UCPD_PE_SM_SNK_Enter(pe_prl_cad, PE_SNK_STATE_TRANSITION_TO_DEFAULT);
     break;
   }
 
   case PE_PRL_EVENT_PE_HARD_RESET_SENT: {
-    UCPD_PE_SM_SNK_Enter(port_number, PE_SNK_STATE_TRANSITION_TO_DEFAULT);
+    UCPD_PE_SM_SNK_Enter(pe_prl_cad, PE_SNK_STATE_TRANSITION_TO_DEFAULT);
     break;
   }
 
   case PE_PRL_EVENT_VBUS_PRESENT: {
-    UCPD_PE_SM_SNK_Enter(port_number, PE_SNK_STATE_WAIT_FOR_CAPABILITIES);
+    UCPD_PE_SM_SNK_Enter(pe_prl_cad, PE_SNK_STATE_WAIT_FOR_CAPABILITIES);
     break;
   }
 
   case PE_PRL_EVENT_SRT_EXPIRED: {
-    UCPD_PE_SM_SRT_Enter(port_number, PE_SRT_STATE_EXPIRED);
+    UCPD_PE_SM_SRT_Enter(pe_prl_cad, PE_SRT_STATE_EXPIRED);
     break;
   }
 
   case PE_PRL_EVENT_SNK_PPS_PER_TIMEOUT: {
-    pe_prl_cad->pps_periodic_expired = UCPD_TRUE;
-    UCPD_PE_SM_SNK_Enter(port_number, PE_SNK_STATE_EVALUATE_CAPABILITY);
+    pe_prl_cad->pps_periodic_expired = true;
+    UCPD_PE_SM_SNK_Enter(pe_prl_cad, PE_SNK_STATE_EVALUATE_CAPABILITY);
     break;
   }
 
   case PE_PRL_EVENT_DPM_REQUEST_EPR_MODE_ENTRY: {
-    port->sync_operation = UCPD_TRUE;
-    UCPD_PE_SM_SNK_Enter(port_number, PE_SNK_STATE_SEND_EPR_MODE_ENTRY);
+    pe_prl_cad->sync_operation = true;
+    UCPD_PE_SM_SNK_Enter(pe_prl_cad, PE_SNK_STATE_SEND_EPR_MODE_ENTRY);
     break;
   }
 
   case PE_PRL_EVENT_DPM_REQUEST_EPR_MODE_EXIT: {
-    port->sync_operation = UCPD_TRUE;
-    UCPD_PE_SM_SNK_Enter(port_number, PE_SNK_STATE_SEND_EPR_MODE_EXIT);
+    pe_prl_cad->sync_operation = true;
+    UCPD_PE_SM_SNK_Enter(pe_prl_cad, PE_SNK_STATE_SEND_EPR_MODE_EXIT);
     break;
   }
 
   case PE_PRL_EVENT_EPR_ENTER_TIMEOUT: {
-    UCPD_PE_SM_SNK_Enter(port_number, PE_SNK_STATE_SEND_SOFT_RESET);
+    UCPD_PE_SM_SNK_Enter(pe_prl_cad, PE_SNK_STATE_SEND_SOFT_RESET);
     break;
   }
 
   case PE_PRL_EVENT_EPR_KEEP_ALIVE_TIMEOUT: {
-    UCPD_PE_SM_SNK_Enter(port_number, PE_SNK_STATE_EPR_KEEP_ALIVE);
+    UCPD_PE_SM_SNK_Enter(pe_prl_cad, PE_SNK_STATE_EPR_KEEP_ALIVE);
     break;
   }
 
   case PE_PRL_EVENT_DPM_REQUEST_FIXED_SUPPLY: {
-    port->sync_operation = UCPD_TRUE;
-    UCPD_PE_SM_SNK_Enter(port_number, PE_SNK_STATE_SELECT_CAPABILITY);
+    pe_prl_cad->sync_operation = true;
+    UCPD_PE_SM_SNK_Enter(pe_prl_cad, PE_SNK_STATE_SELECT_CAPABILITY);
     break;
   }
 
   case PE_PRL_EVENT_DPM_REQUEST_PPS: {
-    port->sync_operation = UCPD_TRUE;
+    pe_prl_cad->sync_operation = true;
 
-    UCPD_PE_SM_SNK_Enter(port_number, PE_SNK_STATE_SELECT_CAPABILITY);
+    UCPD_PE_SM_SNK_Enter(pe_prl_cad, PE_SNK_STATE_SELECT_CAPABILITY);
     break;
   }
 
   case PE_PRL_EVENT_DPM_REQUEST_EPR: {
-    port->sync_operation = UCPD_TRUE;
-    UCPD_PE_SM_SNK_Enter(port_number, PE_SNK_STATE_SELECT_CAPABILITY);
+    pe_prl_cad->sync_operation = true;
+    UCPD_PE_SM_SNK_Enter(pe_prl_cad, PE_SNK_STATE_SELECT_CAPABILITY);
     break;
   }
 
@@ -308,21 +290,19 @@ void UCPD_PE_SM_Delta(UCPD_PORT_Number port_number,
   }
 }
 
-void UCPD_PE_SM_SRT_Enter(UCPD_PORT_Number port_number,
+void UCPD_PE_SM_SRT_Enter(UCPD_PE_PRL_CAD_Module *pe_prl_cad,
                           UCPD_PE_SM_SRT_State state) {
-  UCPD_PORT_INSTANCE *port = UCPD_CTX_GetPortInstance(port_number);
-  UCPD_PE_PRL_CAD_Module *pe_prl_cad = &port->pe_prl_cad;
 
   switch (state) {
   case PE_SRT_STATE_STOPPED: {
-    UCPD_TIM_Stop(port_number, UCPD_TIM_SENDER_RESPONSE);
+    UCPD_TIM_Stop(pe_prl_cad->port_number, UCPD_TIM_SENDER_RESPONSE);
 
     break;
   }
 
   case PE_SRT_STATE_RUNNING: {
-    UCPD_TIM_Stop(port_number, UCPD_TIM_SENDER_RESPONSE);
-    UCPD_TIM_Start(port_number, UCPD_TIM_SENDER_RESPONSE);
+    UCPD_TIM_Stop(pe_prl_cad->port_number, UCPD_TIM_SENDER_RESPONSE);
+    UCPD_TIM_Start(pe_prl_cad->port_number, UCPD_TIM_SENDER_RESPONSE);
 
     break;
   }
@@ -331,20 +311,21 @@ void UCPD_PE_SM_SRT_Enter(UCPD_PORT_Number port_number,
     // TODO: check if hrd is the only one that can be entered
     if (pe_prl_cad->snk_state == PE_SNK_STATE_GET_SOURCE_CAPABILITIES ||
         pe_prl_cad->snk_state == PE_SNK_STATE_WAIT_FOR_GET_STATUS)
-      UCPD_PE_SM_SNK_Enter(port_number, PE_SNK_STATE_READY);
+      UCPD_PE_SM_SNK_Enter(pe_prl_cad, PE_SNK_STATE_READY);
     else if (pe_prl_cad->snk_state ==
                  PE_SNK_STATE_EPR_MODE_ENTRY_WAIT_FOR_RESPONSE ||
              pe_prl_cad->snk_state == PE_SNK_STATE_SEND_EPR_MODE_ENTRY) {
 
-      UCPD_PE_SM_SNK_Enter(port_number, PE_SNK_STATE_SEND_SOFT_RESET);
+      UCPD_PE_SM_SNK_Enter(pe_prl_cad, PE_SNK_STATE_SEND_SOFT_RESET);
 
-      if (port->current_callback != NULL) {
-        port->current_callback(UCPD_STATUS_FAILURE);
-        port->current_callback = NULL;
+      if (pe_prl_cad->current_callback != NULL) {
+        pe_prl_cad->current_callback(UCPD_STATUS_FAILURE);
+        pe_prl_cad->current_callback = NULL;
       }
-      port->sync_operation = UCPD_FALSE;
+
+      pe_prl_cad->sync_operation = false;
     } else
-      UCPD_PE_SM_SNK_Enter(port_number, PE_SNK_STATE_HARD_RESET);
+      UCPD_PE_SM_SNK_Enter(pe_prl_cad, PE_SNK_STATE_HARD_RESET);
 
     break;
   }
@@ -355,92 +336,89 @@ void UCPD_PE_SM_SRT_Enter(UCPD_PORT_Number port_number,
   };
 }
 
-void UCPD_PE_SM_SNK_Enter(UCPD_PORT_Number port_number,
+void UCPD_PE_SM_SNK_Enter(UCPD_PE_PRL_CAD_Module *pe_prl_cad,
                           UCPD_PE_SM_SNK_State state) {
-  UCPD_PORT_INSTANCE *port = UCPD_CTX_GetPortInstance(port_number);
-  UCPD_PE_PRL_CAD_Module *pe_prl_cad = &port->pe_prl_cad;
 
-  UCPD_PE_SM_SNK_Exit(port_number, pe_prl_cad->snk_state);
+  UCPD_MSG *rx_msg = &pe_prl_cad->buffers[UCPD_RX_BUFFER_INDEX];
+  UCPD_MSG *tx_msg = &pe_prl_cad->buffers[UCPD_TX_BUFFER_INDEX];
+  UCPD_MSG *ext_tx_msg = &pe_prl_cad->buffers[UCPD_EXT_TX_BUFFER_INDEX];
+  UCPD_MSG *ext_rx_msg = &pe_prl_cad->buffers[UCPD_EXT_RX_BUFFER_INDEX];
+
+  UCPD_PE_SM_SNK_Exit(pe_prl_cad, pe_prl_cad->snk_state);
   pe_prl_cad->snk_state = state;
 
   switch (state) {
 
   case PE_SNK_STATE_STARTUP: {
 
-    
-    pe_prl_cad->hrdOriginPE = UCPD_FALSE;
-    UCPD_PE_SM_SNK_Enter(port_number, PE_SNK_STATE_DISCOVERY);
+    pe_prl_cad->hrdOriginPE = false;
+    UCPD_PE_SM_SNK_Enter(pe_prl_cad, PE_SNK_STATE_DISCOVERY);
 
     break;
   }
 
   case PE_SNK_STATE_DISCOVERY: {
 
-    if (UCPD_PWR_vS0_to_vS5(port_number) == UCPD_TRUE)
-      UCPD_PE_SM_SNK_Enter(port_number, PE_SNK_STATE_WAIT_FOR_CAPABILITIES);
+    if (UCPD_PWR_vS0_to_vS5(pe_prl_cad->port_number))
+      UCPD_PE_SM_SNK_Enter(pe_prl_cad, PE_SNK_STATE_WAIT_FOR_CAPABILITIES);
 
     break;
   }
 
   case PE_SNK_STATE_WAIT_FOR_CAPABILITIES: {
-    pe_prl_cad->explicit_contract = UCPD_FALSE;
+    pe_prl_cad->explicit_contract = false;
 
+    UCPD_TIM_Start(pe_prl_cad->port_number, UCPD_TIM_SINK_WAIT_CAP);
 
-    UCPD_TIM_Start(port_number, UCPD_TIM_SINK_WAIT_CAP);
-
-
-    if (port->current_callback != NULL) {
-      if (pe_prl_cad->buffers[UCPD_RX_BUFFER_INDEX].msg.header.extended == 0u &&
-          pe_prl_cad->buffers[UCPD_RX_BUFFER_INDEX].msg.header.message_type ==
-              UCPD_REJECT_MSG_ID)
-        port->current_callback(UCPD_STATUS_FAILURE);
+    if (pe_prl_cad->current_callback != NULL) {
+      if (rx_msg->header.extended == false &&
+          rx_msg->header.message_type == UCPD_REJECT_MSG_ID)
+        pe_prl_cad->current_callback(UCPD_STATUS_FAILURE);
       else
-        port->current_callback(UCPD_STATUS_SUCCESS);
+        pe_prl_cad->current_callback(UCPD_STATUS_SUCCESS);
 
-      port->current_callback = NULL;
+      pe_prl_cad->current_callback = NULL;
     }
 
-    port->sync_operation = UCPD_FALSE;
+    pe_prl_cad->sync_operation = false;
     break;
   }
 
   case PE_SNK_STATE_EVALUATE_CAPABILITY: {
-    UCPD_CNT_Reset(port_number, UCPD_CNT_HARD_RESET);
+    UCPD_CNT_Reset(pe_prl_cad->port_number, UCPD_CNT_HARD_RESET);
 
-    pe_prl_cad->ams = UCPD_TRUE;
+    pe_prl_cad->ams = true;
 
-    if (pe_prl_cad->pps_periodic_expired == UCPD_FALSE) {
-      UCPD_MSG *msg = &(pe_prl_cad->buffers[UCPD_RX_BUFFER_INDEX]);
-      UCPD_PORT_INSTANCE *port = UCPD_CTX_GetPortInstance(port_number);
-      UCPD_PRL_SM_Delta(port_number, PE_PRL_EVENT_AMS_FIRST_FROM_PE);
+    if (pe_prl_cad->pps_periodic_expired == false) {
+      // UCPD_MSG *msg = &(pe_prl_cad->buffers[UCPD_RX_BUFFER_INDEX]);
+      // UCPD_PORT_INSTANCE *port = UCPD_CTX_GetPortInstance(port_number);
+      UCPD_PRL_SM_Delta(pe_prl_cad, PE_PRL_EVENT_AMS_FIRST_FROM_PE);
 
-      if (msg->msg.header.extended == 0u &&
-          msg->msg.header.message_type == UCPD_SOURCE_CAPABILITIES_MSG_ID) {
-        port->snk_src_pdo_count = msg->msg.header.number_of_data_objects;
-        COPY_RAW(msg->msg.body.src_pdos, port->src_pdos,
-                 sizeof(UCPD_SRC_PDO) * port->snk_src_pdo_count);
-      } else if (msg->msg.header.extended == 1u &&
-                 msg->msg.header.message_type ==
+      if (rx_msg->header.extended == false &&
+          rx_msg->header.message_type == UCPD_SOURCE_CAPABILITIES_MSG_ID) {
+        pe_prl_cad->snk_src_pdo_count = rx_msg->header.number_of_data_objects;
+        COPY_RAW(rx_msg->body.src_pdos, pe_prl_cad->src_pdos,
+                 sizeof(UCPD_SRC_PDO) * pe_prl_cad->snk_src_pdo_count);
+      } else if (ext_rx_msg->header.extended == true &&
+                 ext_rx_msg->header.message_type ==
                      UCPD_EPR_SOURCE_CAPABILITIES_MSG_ID) {
         uint8_t count =
-            msg->msg.ext_message.ext_header.data_size / UCPD_PDO_SIZE;
+            ext_rx_msg->ext_message.ext_header.data_size / UCPD_PDO_SIZE;
         if (count > (UCPD_MAX_PDO_NUM + UCPD_MAX_EPR_PDO_NUM))
           count = (UCPD_MAX_PDO_NUM + UCPD_MAX_EPR_PDO_NUM);
-        port->snk_src_pdo_count = count;
-        COPY_RAW(msg->msg.ext_message.body.epr_pdos, port->src_pdos,
-                 sizeof(UCPD_SRC_PDO) * port->snk_src_pdo_count);
+        pe_prl_cad->snk_src_pdo_count = count;
+        COPY_RAW(ext_rx_msg->ext_message.body.epr_pdos, pe_prl_cad->src_pdos,
+                 sizeof(UCPD_SRC_PDO) * pe_prl_cad->snk_src_pdo_count);
       }
 
-      msg->msg.header.extended = 0u;
-
-       TRACE_PrintSrcPDOs(port->src_pdos, port->snk_src_pdo_count);
+      TRACE_PrintSrcPDOs(pe_prl_cad->src_pdos, pe_prl_cad->snk_src_pdo_count);
     }
 
-    pe_prl_cad->pps_periodic_expired = UCPD_FALSE;
+    pe_prl_cad->pps_periodic_expired = false;
 
-    UCPD_DPM_EvaluateCapabilities(port_number);
+    UCPD_DPM_EvaluateCapabilities(pe_prl_cad->port_number);
 
-    UCPD_PE_SM_SNK_Enter(port_number, PE_SNK_STATE_SELECT_CAPABILITY);
+    UCPD_PE_SM_SNK_Enter(pe_prl_cad, PE_SNK_STATE_SELECT_CAPABILITY);
 
     break;
   }
@@ -451,133 +429,108 @@ void UCPD_PE_SM_SNK_Enter(UCPD_PORT_Number port_number,
     // this will be a Request message
 
     uint8_t pdo_index =
-        pe_prl_cad->buffers[UCPD_TX_BUFFER_INDEX].msg.body.snk_rdo.object_pos -
+        tx_msg->body.snk_rdo.object_pos -
         1u;
-
-
 
     // I do not see a reason we cannot enter PPS contract in EPR mode
     // so just check if we are in EPR mode
-    if (pe_prl_cad->epr_mode == UCPD_TRUE) {
-      UCPD_CNT_Increment(port_number, UCPD_CNT_MESSAGEID);
-      pe_prl_cad->buffers[UCPD_TX_BUFFER_INDEX].msg.body.epr_request.src_pdo =
-          port->src_pdos[pdo_index];
-
-      pe_prl_cad->buffers[UCPD_TX_BUFFER_INDEX].msg.header.message_type =
+    if (pe_prl_cad->epr_mode) {
+      UCPD_CNT_Increment(pe_prl_cad->port_number, UCPD_CNT_MESSAGEID);
+      tx_msg->header.message_type =
           UCPD_EPR_REQUEST_MSG_ID;
 
-      pe_prl_cad->buffers[UCPD_TX_BUFFER_INDEX]
-          .msg.header.number_of_data_objects = 2u;
-
-      pe_prl_cad->buffers[UCPD_TX_BUFFER_INDEX]
-          .msg.body.epr_request.snk_rdo.epr_mode_capable = 1u;
-
-      pe_prl_cad->buffers[UCPD_TX_BUFFER_INDEX].msg.header.extended = 0u;
-
-      pe_prl_cad->buffers[UCPD_TX_BUFFER_INDEX].msg.body.epr_request.snk_rdo.capability_mismatch = 1u;
-
-
+      tx_msg->header.number_of_data_objects = 2u;
 
       pe_prl_cad->txSize =
           sizeof(UCPD_SNK_RDO) + sizeof(UCPD_SRC_PDO) + UCPD_MSG_HEADER_SIZE;
 
-      pe_prl_cad->response_expected = UCPD_TRUE;
-
-
     } else {
-      pe_prl_cad->buffers[UCPD_TX_BUFFER_INDEX].msg.header.message_type =
-          UCPD_REQUEST_MSG_ID;
+      tx_msg->header.message_type = UCPD_REQUEST_MSG_ID;
 
-      pe_prl_cad->buffers[UCPD_TX_BUFFER_INDEX]
-          .msg.header.number_of_data_objects = 1u;
+      tx_msg->header.number_of_data_objects = 1u;
 
-      pe_prl_cad->buffers[UCPD_TX_BUFFER_INDEX]
-                .msg.body.snk_rdo.epr_mode_capable = 1u;
-
-      pe_prl_cad->buffers[UCPD_TX_BUFFER_INDEX].msg.header.extended = 0u;
 
       pe_prl_cad->txSize = sizeof(UCPD_SNK_RDO) + UCPD_MSG_HEADER_SIZE;
 
-      pe_prl_cad->buffers[UCPD_TX_BUFFER_INDEX].msg.body.snk_rdo.capability_mismatch = 1u;
 
-      pe_prl_cad->response_expected = UCPD_TRUE;
 
-      if (port->src_pdos[pdo_index].pdo_type == UCPD_PDO_TYPE_APDO &&
-          port->src_pdos[pdo_index].APDO.apdo_type == UCPD_APDO_TYPE_PPS)
-        pe_prl_cad->pps_contract = UCPD_TRUE;
+      if (pe_prl_cad->src_pdos[pdo_index].pdo_type == UCPD_PDO_TYPE_APDO &&
+          pe_prl_cad->src_pdos[pdo_index].APDO.apdo_type == UCPD_APDO_TYPE_PPS)
+        pe_prl_cad->pps_contract = true;
       else
-        pe_prl_cad->pps_contract = UCPD_FALSE;
+        pe_prl_cad->pps_contract = false;
     }
 
-    UCPD_PRL_SM_Delta(port_number, PE_PRL_EVENT_MESSAGE_FROM_PE);
+    pe_prl_cad->response_expected = true;
+
+    UCPD_PRL_SM_Delta(pe_prl_cad, PE_PRL_EVENT_MESSAGE_FROM_PE);
 
     break;
   }
 
   case PE_SNK_STATE_TRANSITION_SINK: {
-    UCPD_PE_SM_SRT_Enter(port_number, PE_SRT_STATE_STOPPED);
-    if (pe_prl_cad->epr_mode == UCPD_TRUE)
-      UCPD_TIM_Start(port_number, UCPD_TIM_SINK_EPR_TRANSITION);
+    UCPD_PE_SM_SRT_Enter(pe_prl_cad, PE_SRT_STATE_STOPPED);
+    if (pe_prl_cad->epr_mode)
+      UCPD_TIM_Start(pe_prl_cad->port_number, UCPD_TIM_SINK_EPR_TRANSITION);
     else
-      UCPD_TIM_Start(port_number, UCPD_TIM_PS_TRANSITION);
+      UCPD_TIM_Start(pe_prl_cad->port_number, UCPD_TIM_PS_TRANSITION);
     break;
   }
 
   case PE_SNK_STATE_READY: {
 
-    pe_prl_cad->ams = UCPD_FALSE;
-    pe_prl_cad->explicit_contract = UCPD_TRUE;
-    pe_prl_cad->ams_first_sent = UCPD_FALSE;
+    pe_prl_cad->ams = false;
+    pe_prl_cad->explicit_contract = true;
+    pe_prl_cad->ams_first_sent = false;
 
-    if (pe_prl_cad->pps_contract == UCPD_TRUE)
-      UCPD_TIM_Start(port_number, UCPD_TIM_SINK_PPS_PERIODIC);
-    
-    if(pe_prl_cad->epr_mode == UCPD_TRUE)
-      UCPD_TIM_Start(port_number, UCPD_TIM_SINK_EPR_KEEP_ALIVE);
+    if (pe_prl_cad->pps_contract)
+      UCPD_TIM_Start(pe_prl_cad->port_number, UCPD_TIM_SINK_PPS_PERIODIC);
 
-    if (port->current_callback != NULL) {
-      if (pe_prl_cad->buffers[UCPD_RX_BUFFER_INDEX].msg.header.message_type ==
-          UCPD_PS_RDY_MSG_ID)
-        port->current_callback(UCPD_STATUS_SUCCESS);
+    if (pe_prl_cad->epr_mode)
+      UCPD_TIM_Start(pe_prl_cad->port_number, UCPD_TIM_SINK_EPR_KEEP_ALIVE);
+
+    if (pe_prl_cad->current_callback != NULL) {
+      if (rx_msg->header.message_type == UCPD_PS_RDY_MSG_ID)
+        pe_prl_cad->current_callback(UCPD_STATUS_SUCCESS);
       else
-        port->current_callback(UCPD_STATUS_FAILURE);
+        pe_prl_cad->current_callback(UCPD_STATUS_FAILURE);
 
-      port->current_callback = NULL;
+      pe_prl_cad->current_callback = NULL;
     }
-    port->sync_operation = UCPD_FALSE;
+    pe_prl_cad->sync_operation = false;
     break;
   }
 
   case PE_SNK_STATE_HARD_RESET: {
-    UCPD_CNT_Increment(port_number, UCPD_CNT_HARD_RESET);
+    UCPD_CNT_Increment(pe_prl_cad->port_number, UCPD_CNT_HARD_RESET);
 
-    pe_prl_cad->hardResetActive = UCPD_TRUE;
-    pe_prl_cad->hrdOriginPE = UCPD_TRUE;
+    pe_prl_cad->hardResetActive = true;
+    pe_prl_cad->hrdOriginPE = true;
 
-    pe_prl_cad->pps_contract = UCPD_FALSE;
-    pe_prl_cad->ams = UCPD_FALSE;
-    pe_prl_cad->ams_first_sent = UCPD_FALSE;
-    pe_prl_cad->epr_mode = UCPD_FALSE;
+    pe_prl_cad->pps_contract = false;
+    pe_prl_cad->ams = false;
+    pe_prl_cad->ams_first_sent = false;
+    pe_prl_cad->epr_mode = false;
 
-    UCPD_PRL_SM_Delta(port_number, PE_PRL_EVENT_HRD_RECEIVED);
+    UCPD_PRL_SM_Delta(pe_prl_cad, PE_PRL_EVENT_HRD_RECEIVED);
 
     break;
   }
 
   case PE_SNK_STATE_TRANSITION_TO_DEFAULT: {
-    pe_prl_cad->explicit_contract = UCPD_FALSE;
-    pe_prl_cad->pps_contract = UCPD_FALSE;
-    pe_prl_cad->ams = UCPD_FALSE;
-    pe_prl_cad->ams_first_sent = UCPD_FALSE;
-    pe_prl_cad->hrdOriginPE = UCPD_FALSE;
-    pe_prl_cad->extended_message = UCPD_FALSE;
+    pe_prl_cad->explicit_contract = false;
+    pe_prl_cad->pps_contract = false;
+    pe_prl_cad->ams = false;
+    pe_prl_cad->ams_first_sent = false;
+    pe_prl_cad->hrdOriginPE = false;
+    pe_prl_cad->extended_message = false;
 
     // DONE:request dpm power transition to default, whatever that means
-    UCPD_DPM_PowerTransitionDefault(port_number);
+    UCPD_DPM_PowerTransitionDefault(pe_prl_cad->port_number);
 
     // DONE?:reset hardware, whatever that means
 
-    UCPD_PE_SM_SNK_Enter(port_number, PE_SNK_STATE_STARTUP);
+    UCPD_PE_SM_SNK_Enter(pe_prl_cad, PE_SNK_STATE_STARTUP);
     break;
   }
 
@@ -585,15 +538,14 @@ void UCPD_PE_SM_SNK_Enter(UCPD_PORT_Number port_number,
 
   case PE_SNK_STATE_SOFT_RESET: {
     // DONE:request prl to send accept
-    pe_prl_cad->buffers[UCPD_TX_BUFFER_INDEX].msg.header.message_type =
-        UCPD_ACCEPT_MSG_ID;
+    *tx_msg = UCPD_MSG_INIT;
+    tx_msg->header.message_type = UCPD_ACCEPT_MSG_ID;
 
-    pe_prl_cad->buffers[UCPD_TX_BUFFER_INDEX]
-        .msg.header.number_of_data_objects = 0;
+    tx_msg->header.number_of_data_objects = 0;
 
     pe_prl_cad->txSize = UCPD_MSG_HEADER_SIZE;
 
-    UCPD_PRL_SM_Delta(port_number, PE_PRL_EVENT_MESSAGE_FROM_PE);
+    UCPD_PRL_SM_Delta(pe_prl_cad, PE_PRL_EVENT_MESSAGE_FROM_PE);
     break;
   }
 
@@ -604,18 +556,17 @@ void UCPD_PE_SM_SNK_Enter(UCPD_PORT_Number port_number,
 
   case PE_SNK_STATE_SEND_SOFT_RESET: {
     // TODO:reset prl
-    UCPD_PRL_SM_Delta(port_number, PE_PRL_EVENT_PRL_INIT);
+    UCPD_PRL_SM_Delta(pe_prl_cad, PE_PRL_EVENT_PRL_INIT);
 
     // DONE:request prl to send soft reset
-    pe_prl_cad->buffers[UCPD_TX_BUFFER_INDEX].msg.header.message_type =
-        UCPD_SOFT_RESET_MSG_ID;
+    *tx_msg = UCPD_MSG_INIT;
+    tx_msg->header.message_type = UCPD_SOFT_RESET_MSG_ID;
 
-    pe_prl_cad->buffers[UCPD_TX_BUFFER_INDEX]
-        .msg.header.number_of_data_objects = 0;
+    tx_msg->header.number_of_data_objects = 0u;
 
     pe_prl_cad->txSize = UCPD_MSG_HEADER_SIZE;
 
-    UCPD_PRL_SM_Delta(port_number, PE_PRL_EVENT_MESSAGE_FROM_PE);
+    UCPD_PRL_SM_Delta(pe_prl_cad, PE_PRL_EVENT_MESSAGE_FROM_PE);
 
     break;
   }
@@ -625,40 +576,37 @@ void UCPD_PE_SM_SNK_Enter(UCPD_PORT_Number port_number,
   case PE_SNK_STATE_NOT_SUPPORTED_RECEIVED: {
     // DONE: inform dpm not supported received
 
-    if (UCPD_DPM_InformMessageReceived(port_number))
-      UCPD_PE_SM_SNK_Enter(port_number, PE_SNK_STATE_READY);
+    if (UCPD_DPM_InformMessageReceived(pe_prl_cad->port_number))
+      UCPD_PE_SM_SNK_Enter(pe_prl_cad, PE_SNK_STATE_READY);
 
     break;
   }
 
   case PE_SNK_STATE_SEND_NOT_SUPPORTED: {
     // DONE:tell prl to send not supported message
-    pe_prl_cad->buffers[UCPD_TX_BUFFER_INDEX].msg.header.message_type =
+    *tx_msg = UCPD_MSG_INIT;
+    tx_msg->header.message_type = UCPD_NOT_SUPPORTED_MSG_ID;
         UCPD_NOT_SUPPORTED_MSG_ID;
 
-    pe_prl_cad->buffers[UCPD_TX_BUFFER_INDEX]
-        .msg.header.number_of_data_objects = 0;
+    tx_msg->header.number_of_data_objects = 0u;
 
     pe_prl_cad->txSize = UCPD_MSG_HEADER_SIZE;
 
-    UCPD_PRL_SM_Delta(port_number, PE_PRL_EVENT_MESSAGE_FROM_PE);
+    UCPD_PRL_SM_Delta(pe_prl_cad, PE_PRL_EVENT_MESSAGE_FROM_PE);
     break;
   }
 
   case PE_SNK_STATE_SEND_EPR_MODE_ENTRY: {
-    pe_prl_cad->buffers[UCPD_TX_BUFFER_INDEX].msg.header.message_type =
-        UCPD_EPR_MODE_MSG_ID;
-    pe_prl_cad->buffers[UCPD_TX_BUFFER_INDEX]
-        .msg.header.number_of_data_objects = 1;
-    pe_prl_cad->buffers[UCPD_TX_BUFFER_INDEX].msg.body.epr_mdo.action =
-        UCPD_EPR_ACTION_ENTER;
+    tx_msg->header.message_type = UCPD_EPR_MODE_MSG_ID;
+    tx_msg->header.number_of_data_objects = 1u;
+
     // operational pdp should be set by policy
-    pe_prl_cad->response_expected = UCPD_TRUE;
-    pe_prl_cad->entering_epr = UCPD_TRUE;
+    pe_prl_cad->response_expected = true;
+    pe_prl_cad->entering_epr = true;
 
     pe_prl_cad->txSize = UCPD_MSG_HEADER_SIZE + sizeof(UCPD_EPRMDO);
 
-    UCPD_PRL_SM_Delta(port_number, PE_PRL_EVENT_MESSAGE_FROM_PE);
+    UCPD_PRL_SM_Delta(pe_prl_cad, PE_PRL_EVENT_MESSAGE_FROM_PE);
 
     break;
   }
@@ -668,52 +616,45 @@ void UCPD_PE_SM_SNK_Enter(UCPD_PORT_Number port_number,
   }
 
   case PE_SNK_STATE_SEND_EPR_MODE_EXIT: {
-    pe_prl_cad->buffers[UCPD_TX_BUFFER_INDEX].msg.header.message_type =
-        UCPD_EPR_MODE_MSG_ID;
+    tx_msg->header.message_type = UCPD_EPR_MODE_MSG_ID;
 
-    pe_prl_cad->buffers[UCPD_TX_BUFFER_INDEX]
-        .msg.header.number_of_data_objects = 1;
-    pe_prl_cad->buffers[UCPD_TX_BUFFER_INDEX].msg.body.epr_mdo.action =
-        UCPD_EPR_ACTION_EXIT;
+    tx_msg->header.number_of_data_objects = 1u;
 
-    pe_prl_cad->buffers[UCPD_TX_BUFFER_INDEX].msg.body.epr_mdo.data = 0u;
+    UCPD_PRL_SM_Delta(pe_prl_cad, PE_PRL_EVENT_MESSAGE_FROM_PE);
 
-    UCPD_PRL_SM_Delta(port_number, PE_PRL_EVENT_MESSAGE_FROM_PE);
+    UCPD_PRL_SM_Delta(pe_prl_cad, PE_PRL_EVENT_MESSAGE_FROM_PE);
     break;
   }
 
   case PE_SNK_STATE_EPR_MODE_EXIT_RECEIVED: {
-    pe_prl_cad->epr_mode = UCPD_FALSE;
-    UCPD_PE_SM_SNK_Enter(port_number, PE_SNK_STATE_WAIT_FOR_CAPABILITIES);
+    pe_prl_cad->epr_mode = false;
+    UCPD_PE_SM_SNK_Enter(pe_prl_cad, PE_SNK_STATE_WAIT_FOR_CAPABILITIES);
     break;
   }
 
   case PE_SNK_STATE_EPR_KEEP_ALIVE: {
-    /* Build full extended message in EXT TX buffer; PRL will chunk into TX buffer. */
-    pe_prl_cad->buffers[UCPD_EXT_TX_BUFFER_INDEX].msg.header.message_type =
-        UCPD_EXTENDED_CONTROL_MSG_ID;
-    pe_prl_cad->buffers[UCPD_EXT_TX_BUFFER_INDEX].msg.header.extended = 1u;
+    /* Build full extended message in EXT TX buffer; PRL will chunk into TX
+     * buffer. */
+    *ext_tx_msg = UCPD_MSG_INIT;
+    ext_tx_msg->header.message_type = UCPD_EXTENDED_CONTROL_MSG_ID;
+    ext_tx_msg->header.extended = true;
 
-    pe_prl_cad->buffers[UCPD_EXT_TX_BUFFER_INDEX]
-        .msg.ext_message.ext_header.chunk_number = 0u;
-    pe_prl_cad->buffers[UCPD_EXT_TX_BUFFER_INDEX]
-        .msg.ext_message.ext_header.chunked = 1u;
-    pe_prl_cad->buffers[UCPD_EXT_TX_BUFFER_INDEX]
-        .msg.ext_message.ext_header.data_size = 2u;
-    pe_prl_cad->buffers[UCPD_EXT_TX_BUFFER_INDEX]
-        .msg.ext_message.ext_header.request_chunk = 0u;
-    pe_prl_cad->buffers[UCPD_EXT_TX_BUFFER_INDEX].msg.header.number_of_data_objects = 1u;
+    ext_tx_msg->ext_message.ext_header = (UCPD_MSG_EXT_HEADER){
+        .chunked = true,
+        .data_size = 2u
+    };
 
-    pe_prl_cad->buffers[UCPD_EXT_TX_BUFFER_INDEX].msg.ext_message.body.epr_ecdb.type =
-        UCPD_EPR_KEEP_ALIVE_EXT_MSG_ID;
-    pe_prl_cad->buffers[UCPD_EXT_TX_BUFFER_INDEX].msg.ext_message.body.epr_ecdb.data = 0u;
+    ext_tx_msg->header.number_of_data_objects = 1u;
 
-    pe_prl_cad->response_expected = UCPD_TRUE;
+    ext_tx_msg->ext_message.body.epr_ecdb = (UCPD_ECDB){
+        .type = UCPD_EPR_KEEP_ALIVE_EXT_MSG_ID
+    };
 
-    pe_prl_cad->extended_message = UCPD_TRUE;
+    pe_prl_cad->response_expected = true;
+    pe_prl_cad->extended_message = true;
 
     /* Let PRL compute txSize from per-chunk assembly. */
-    UCPD_PRL_SM_Delta(port_number, PE_PRL_EVENT_MESSAGE_FROM_PE);
+    UCPD_PRL_SM_Delta(pe_prl_cad, PE_PRL_EVENT_MESSAGE_FROM_PE);
     break;
   }
 
@@ -721,7 +662,7 @@ void UCPD_PE_SM_SNK_Enter(UCPD_PORT_Number port_number,
   case PE_SNK_STATE_GET_SOURCE_CAPABILITIES: {
     // DONE: ask prl to send get source cap message
     prl_sm->ctrlMsgID = UCPD_GET_SOURCE_CAP_MSG_ID;
-    pe_sm->response_expected = UCPD_TRUE;
+    pe_sm->response_expected = true;
 
     UCPD_PRL_SM_CHUNKED_TX_Enter(port_number, PRL_TCH_STATE_PASS_DOWN_MESSAGE);
 
@@ -741,7 +682,7 @@ void UCPD_PE_SM_SNK_Enter(UCPD_PORT_Number port_number,
 
             prl_sm->dataMsgID = UCPD_SOURCE_CAPABILITIES_MSG_ID;
             //TODO: check if this is correct
-            pe_sm->response_expected = UCPD_FALSE;
+            pe_sm->response_expected = false;
 
 
             UCPD_PRL_SM_CHUNKED_TX_Enter(port_number, PRL_TCH_STATE_PASS_DOWN_MESSAGE);
@@ -928,37 +869,35 @@ void UCPD_PE_SM_SNK_Enter(UCPD_PORT_Number port_number,
   }
 }
 
-void UCPD_PE_SM_SNK_Exit(UCPD_PORT_Number port_number,
+void UCPD_PE_SM_SNK_Exit(UCPD_PE_PRL_CAD_Module *pe_prl_cad,
                          UCPD_PE_SM_SNK_State state) {
-  UCPD_PORT_INSTANCE *port = UCPD_CTX_GetPortInstance(port_number);
-  UCPD_PE_PRL_CAD_Module *pe_prl_cad = &port->pe_prl_cad;
 
   switch (state) {
   case PE_SNK_STATE_EVALUATE_CAPABILITY: {
-    UCPD_TIM_Stop(port_number, UCPD_TIM_SINK_WAIT_CAP);
+    UCPD_TIM_Stop(pe_prl_cad->port_number, UCPD_TIM_SINK_WAIT_CAP);
 
     break;
   }
 
   case PE_SNK_STATE_TRANSITION_SINK: {
     // request dpm to transition to new power
-    UCPD_TIM_Stop(port_number, UCPD_TIM_PS_TRANSITION);
+    UCPD_TIM_Stop(pe_prl_cad->port_number, UCPD_TIM_PS_TRANSITION);
 
     break;
   }
 
   case PE_SNK_STATE_READY: {
     // notify prl of ams if initiated
-    pe_prl_cad->ams = UCPD_TRUE;
-    if (pe_prl_cad->pps_contract == UCPD_TRUE) {
-      pe_prl_cad->pps_contract = UCPD_FALSE;
-      UCPD_TIM_Stop(port_number, UCPD_TIM_SINK_PPS_PERIODIC);
+    pe_prl_cad->ams = true;
+    if (pe_prl_cad->pps_contract) {
+      pe_prl_cad->pps_contract = false;
+      UCPD_TIM_Stop(pe_prl_cad->port_number, UCPD_TIM_SINK_PPS_PERIODIC);
     }
 
     break;
   }
   case PE_SNK_STATE_TRANSITION_TO_DEFAULT: {
-    UCPD_PRL_SM_HRD_Enter(port_number, PRL_HR_STATE_PE_HARD_RESET_COMPLETE);
+    UCPD_PRL_SM_HRD_Enter(pe_prl_cad, PRL_HR_STATE_PE_HARD_RESET_COMPLETE);
     break;
   }
 
@@ -967,22 +906,22 @@ void UCPD_PE_SM_SNK_Exit(UCPD_PORT_Number port_number,
   }
 
   case PE_SNK_STATE_EPR_MODE_ENTRY_WAIT_FOR_RESPONSE: {
-    pe_prl_cad->epr_mode = UCPD_TRUE;
-    port->sync_operation = UCPD_FALSE;
-    if (port->current_callback != NULL) {
-      port->current_callback(UCPD_STATUS_SUCCESS);
-      port->current_callback = NULL;
+    pe_prl_cad->epr_mode = true;
+    pe_prl_cad->sync_operation = false;
+    if (pe_prl_cad->current_callback != NULL) {
+      pe_prl_cad->current_callback(UCPD_STATUS_SUCCESS);
+      pe_prl_cad->current_callback = NULL;
     }
-    UCPD_TIM_Stop(port_number, UCPD_TIM_SINK_EPR_ENTER);
+    UCPD_TIM_Stop(pe_prl_cad->port_number, UCPD_TIM_SINK_EPR_ENTER);
     break;
   }
 
   case PE_SNK_STATE_SEND_EPR_MODE_EXIT: {
-    pe_prl_cad->epr_mode = UCPD_FALSE;
-    port->sync_operation = UCPD_FALSE;
-    if (port->current_callback != NULL) {
-      port->current_callback(UCPD_STATUS_SUCCESS);
-      port->current_callback = NULL;
+    pe_prl_cad->epr_mode = false;
+    pe_prl_cad->sync_operation = false;
+    if (pe_prl_cad->current_callback != NULL) {
+      pe_prl_cad->current_callback(UCPD_STATUS_SUCCESS);
+      pe_prl_cad->current_callback = NULL;
     }
     break;
   }

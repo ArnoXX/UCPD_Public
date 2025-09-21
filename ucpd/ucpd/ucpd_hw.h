@@ -43,7 +43,7 @@ void UCPD_PHY_Handler(void);
 void UCPD_PHY_Event_Handler(void);
 
 /* Individual events handlers */
-void UCPD_PHY_RX_Complete(UCPD_PORT_Number port_number, UCPD_Bool error);
+void UCPD_PHY_RX_Complete(UCPD_PORT_Number port_number, bool error);
 
 void UCPD_PHY_TX_Complete(UCPD_PORT_Number port_number);
 
@@ -81,13 +81,13 @@ void UCPD_PHY_DeassertRd(UCPD_PORT_Number port_number);
 
 void UCPD_PHY_SetCC(UCPD_PORT_Number port_number);
 
-void UCPD_PHY_EnableCC(UCPD_PORT_Number port_number, UCPD_Bool both);
+void UCPD_PHY_EnableCC(UCPD_PORT_Number port_number, bool both);
 
 void UCPD_PHY_Detach(UCPD_PORT_Number port_number);
 
 void UCPD_PHY_Attach(UCPD_PORT_Number port_number);
 
-UCPD_Bool UCPD_PHY_IsSinkTxOk(UCPD_PORT_Number port_number);
+bool UCPD_PHY_IsSinkTxOk(UCPD_PORT_Number port_number);
 
 void UCPD_PHY_EnableRX(void);
 

@@ -1,22 +1,20 @@
 #ifndef UCPD_PE_SM_H
 #define UCPD_PE_SM_H
 
-#include "ucpd_msg.h"
-#include "ucpd_port_num.h"
-#include "ucpd_utils.h"
 
 
 /* Policy engine state machines states */
 /* Policy engine SenderResponseTimer state machine states */
 typedef enum {
+  PE_SRT_STATE_NONE,
   PE_SRT_STATE_STOPPED,
   PE_SRT_STATE_RUNNING,
-  PE_SRT_STATE_EXPIRED,
-  PE_SRT_STATE_NONE
+  PE_SRT_STATE_EXPIRED
 } UCPD_PE_SM_SRT_State;
 
 /* Policy engine sink port state machine states */
 typedef enum {
+  PE_SNK_STATE_NONE,
   // PE sink port states
   PE_SNK_STATE_TRANSITION_TO_DEFAULT,
   PE_SNK_STATE_HARD_RESET,
@@ -64,52 +62,15 @@ typedef enum {
   // sink Type C referenced state
   PE_STATE_TYPE_C_ERROR_RECOVERY,
 
+  // epr mode states
   PE_SNK_STATE_SEND_EPR_MODE_ENTRY,
   PE_SNK_STATE_EPR_MODE_ENTRY_WAIT_FOR_RESPONSE,
   PE_SNK_STATE_SEND_EPR_MODE_EXIT,
   PE_SNK_STATE_EPR_MODE_EXIT_RECEIVED,
-  PE_SNK_STATE_EPR_KEEP_ALIVE,
-
-  PE_SNK_STATE_NONE
+  PE_SNK_STATE_EPR_KEEP_ALIVE
 } UCPD_PE_SM_SNK_State;
 
-/* Policy engine state machine */
-typedef struct {
 
-  // mb should be bitfields instead of full bools
-  UCPD_Bool response_expected;
 
-  UCPD_Bool transmitting_soft_reset;
-
-  UCPD_Bool msg_received_on_err;
-  UCPD_Bool msg_first_chu_on_err;
-  UCPD_Bool wait_received;
-
-  UCPD_Bool pps_periodic_expired;
-
-  UCPD_Bool pps_contract;
-  UCPD_Bool explicit_contract;
-  UCPD_Bool ams;
-  UCPD_Bool ams_first_sent;
-
-  // last message received
-  UCPD_MSG msg;
-
-  // chunk wait expired
-  UCPD_Bool chunk_wait_expired;
-
-} UCPD_PE_SM;
-
-/* SRT enter function */
-void UCPD_PE_SM_SRT_Enter(UCPD_PORT_Number port_number,
-                          UCPD_PE_SM_SRT_State state);
-
-/* SNK enter function */
-void UCPD_PE_SM_SNK_Enter(UCPD_PORT_Number port_number,
-                          UCPD_PE_SM_SNK_State state);
-
-/* SNK exit function */
-void UCPD_PE_SM_SNK_Exit(UCPD_PORT_Number port_number,
-                         UCPD_PE_SM_SNK_State state);
 
 #endif // UCPD_PE_SM_H

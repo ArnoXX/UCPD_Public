@@ -14,7 +14,6 @@
 #define UCPD_CNT_N_MESSAGEID 7u
 #define UCPD_CNT_N_RETRY 2u
 
-typedef uint16_t UCPD_Count;
 
 /* Counters enum typedef */
 typedef enum {
@@ -29,14 +28,14 @@ typedef enum {
 
 /* Counter to parameter mapping */
 /* Indexed by UCPD_CNT */
-static const UCPD_Count UCPD_COUNTERS_MAX[UCPD_CNT_NUMBER] = {
+static const uint8_t UCPD_COUNTERS_MAX[UCPD_CNT_NUMBER] = {
     UCPD_CNT_N_BUSY,       UCPD_CNT_N_CAPS,      UCPD_CNT_N_DISCOVER_IDENTITY,
     UCPD_CNT_N_HARD_RESET, UCPD_CNT_N_MESSAGEID, UCPD_CNT_N_RETRY};
 
 /* Counter struct typedef */
 typedef struct {
-  UCPD_Count count;
-  UCPD_Count max : 7u;
+  uint8_t count;
+  uint8_t max : 7u;
 } UCPD_COUNTER;
 
 /* Counter initialization function */
@@ -49,10 +48,10 @@ void UCPD_CNT_Increment(UCPD_PORT_Number port_number, UCPD_CNT cnt);
 void UCPD_CNT_Reset(UCPD_PORT_Number port_number, UCPD_CNT cnt);
 
 /* Counter get value function */
-UCPD_Count UCPD_CNT_Get(UCPD_PORT_Number port_number, UCPD_CNT cnt);
+uint8_t UCPD_CNT_Get(UCPD_PORT_Number port_number, UCPD_CNT cnt);
 
 /* Counter compare function */
-UCPD_Bool UCPD_CNT_Compare(UCPD_PORT_Number port_number, UCPD_CNT cnt,
-                           UCPD_Count value);
+bool UCPD_CNT_Compare(UCPD_PORT_Number port_number, UCPD_CNT cnt,
+                           uint8_t value);
 
 #endif // UCPD_CNT_H
