@@ -4,7 +4,6 @@
 #include "ucpd/ucpd_pe_sm.h"
 #include "ucpd/ucpd_tim.h"
 #include "ucpd_cnt.h"
-#include "ucpd_ctx.h"
 #include "ucpd_hw.h"
 #include "ucpd_msg.h"
 #include "ucpd_pe_prl.h"
@@ -255,10 +254,21 @@ void UCPD_PE_SM_Delta(UCPD_PE_PRL_CAD_Module* pe_prl_cad, UCPD_PE_PRL_CAD_Event 
 				return;
 			}
 
-			if (rx_msg->header.extended == true && rx_msg->header.message_type == UCPD_EPR_MODE_MSG_ID)
+			if (pe_prl_cad->extended_message && ext_rx_msg->header.extended == true &&
+			    ext_rx_msg->header.message_type == UCPD_EPR_MODE_MSG_ID &&
+			    ext_rx_msg->body.epr_mdo.action == UCPD_EPR_ACTION_ENTER_FAIL)
 			{
-				if (rx_msg->body.epr_mdo.action == UCPD_EPR_ACTION_ENTER_FAIL)
-					pe_prl_cad->epr_enter_failed_reason = rx_msg->body.epr_mdo.data;
+				if(pe_prl_cad->current_callback != NULL)
+					pe_prl_cad->current_callback(pe_prl_cad->port_number, UCPD_STATUS_FAILURE);
+
+				pe_prl_cad->dpm_request_status = UCPD_STATUS_FAILURE;
+				pe_prl_cad->current_callback = NULL;
+				pe_prl_cad->sync_operation = false;
+
+				pe_prl_cad->epr_enter_failed_reason = ext_rx_msg->body.epr_mdo.data;
+
+				UCPD_PE_SM_SNK_Enter(pe_prl_cad, PE_SNK_STATE_SEND_SOFT_RESET);
+				return;
 			}
 
 			// then enter the state

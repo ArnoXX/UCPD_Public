@@ -14,10 +14,7 @@ typedef enum
 
 } UCPD_Policy_Event;
 
-// Policy just responds to events - evaluate capabilities, get revision, etc.
-// It must not call for fixed/pps requests or epr enter/exit requests
-// Actually it cannot do that since all API calls check if the policy is currently being invoked
-// either through global port object of special functions
+// Policy just responds to events - evaluate capabilities, respond to successful contract, etc.
 
 typedef void (*UCPD_Policy)(UCPD_PORT_Number port_number, UCPD_Policy_Event event);
 
