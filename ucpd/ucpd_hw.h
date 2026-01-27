@@ -5,17 +5,6 @@
 #include "ucpd/ucpd_tim.h"
 
 /* HAL */
-/* PD events */
-typedef enum
-{
-	PHY_EVENT_CC_CHANGE,
-	PHY_EVENT_HRD_RECIEVED,
-	PHY_EVENT_HRD_SENT,
-	PHY_EVENT_MSG_TX_DISCARDED,
-	PHY_EVENT_MSG_TX_COMPLETED,
-	PHY_EVENT_MSG_RX_COMPLETE,
-	PHY_EVENT_NONE
-} UCPD_PHY_Event;
 
 typedef enum
 {
